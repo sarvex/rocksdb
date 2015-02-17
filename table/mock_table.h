@@ -141,11 +141,12 @@ class MockTableFactory : public TableFactory {
                         unique_ptr<RandomAccessFile>&& file, uint64_t file_size,
                         unique_ptr<TableReader>* table_reader) const;
 
-  TableBuilder* NewTableBuilder(
-      const ImmutableCFOptions& ioptions,
-      const InternalKeyComparator& internal_key, WritableFile* file,
-      const CompressionType compression_type,
-      const CompressionOptions& compression_opts) const;
+  TableBuilder* NewTableBuilder(const ImmutableCFOptions& ioptions,
+                                const InternalKeyComparator& internal_key,
+                                WritableFile* file,
+                                const CompressionType compression_type,
+                                const CompressionOptions& compression_opts,
+                                const bool skip_filters = false) const;
 
   // This function will directly create mock table instead of going through
   // MockTableBuilder. MockFileContents has to have a format of <internal_key,
