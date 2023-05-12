@@ -37,13 +37,11 @@ class GTestErrorParser(ErrorParserBase):
         self._last_gtest_name = "Unknown test"
 
     def parse_error(self, line):
-        gtest_name_match = self._GTEST_NAME_PATTERN.match(line)
-        if gtest_name_match:
+        if gtest_name_match := self._GTEST_NAME_PATTERN.match(line):
             self._last_gtest_name = gtest_name_match.group(1)
             return None
-        gtest_fail_match = self._GTEST_FAIL_PATTERN.match(line)
-        if gtest_fail_match:
-            return "%s failed: %s" % (self._last_gtest_name, gtest_fail_match.group(1))
+        if gtest_fail_match := self._GTEST_FAIL_PATTERN.match(line):
+            return f"{self._last_gtest_name} failed: {gtest_fail_match.group(1)}"
         return None
 
 
@@ -54,9 +52,7 @@ class MatchErrorParser(ErrorParserBase):
         self._pattern = re.compile(pattern)
 
     def parse_error(self, line):
-        if self._pattern.match(line):
-            return line
-        return None
+        return line if self._pattern.match(line) else None
 
 
 class CompilerErrorParser(MatchErrorParser):
@@ -160,15 +156,14 @@ _TEST_NAME_TO_PARSERS = {
 
 def main():
     if len(sys.argv) != 2:
-        return "Usage: %s <test name>" % sys.argv[0]
+        return f"Usage: {sys.argv[0]} <test name>"
     test_name = sys.argv[1]
     if test_name not in _TEST_NAME_TO_PARSERS:
-        return "Unknown test name: %s" % test_name
+        return f"Unknown test name: {test_name}"
 
-    error_parsers = []
-    for parser_cls in _TEST_NAME_TO_PARSERS[test_name]:
-        error_parsers.append(parser_cls())
-
+    error_parsers = [
+        parser_cls() for parser_cls in _TEST_NAME_TO_PARSERS[test_name]
+    ]
     for line in sys.stdin:
         line = line.strip()
         for error_parser in error_parsers:

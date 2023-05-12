@@ -23,17 +23,14 @@ class OptionsSpecParser(IniParser):
         'TableOptions.BlockBasedTable'
         """
         section_path = line.strip()[1:-1].split()[0]
-        section_type = ".".join(section_path.split("/"))
-        return section_type
+        return ".".join(section_path.split("/"))
 
     @staticmethod
     def get_section_name(line):
         # example: get_section_name('[CFOptions "default"]')
         token_list = line.strip()[1:-1].split('"')
         # token_list = ['CFOptions', 'default', '']
-        if len(token_list) < 3:
-            return None
-        return token_list[1]  # return 'default'
+        return None if len(token_list) < 3 else token_list[1]
 
     @staticmethod
     def get_section_str(section_type, section_name):
@@ -43,17 +40,17 @@ class OptionsSpecParser(IniParser):
         section_type = "/".join(section_type.strip().split("."))
         # Case 1: section_type = 'DBOptions'
         # Case 2: section_type = 'TableOptions/BlockBasedTable'
-        section_str = "[" + section_type
+        section_str = f"[{section_type}"
         if section_name == NO_COL_FAMILY:
             # Case 1: '[DBOptions]'
-            return section_str + "]"
+            return f"{section_str}]"
         else:
             # Case 2: '[TableOptions/BlockBasedTable "default"]'
-            return section_str + ' "' + section_name + '"]'
+            return f'{section_str} "{section_name}"]'
 
     @staticmethod
     def get_option_str(key, values):
-        option_str = key + "="
+        option_str = f"{key}="
         # get_option_str('db_log_dir', None), returns 'db_log_dir='
         if values:
             # example:
@@ -62,7 +59,7 @@ class OptionsSpecParser(IniParser):
             # 'max_bytes_for_level_multiplier_additional=1:1:1:1:1:1:1'
             if isinstance(values, list):
                 for value in values:
-                    option_str += str(value) + ":"
+                    option_str += f"{str(value)}:"
                 option_str = option_str[:-1]
             else:
                 # example: get_option_str('write_buffer_size', 1048576)
@@ -189,7 +186,7 @@ class DatabaseOptions(DataSource):
         for sec_type in self.options_dict:
             for col_fam in self.options_dict[sec_type]:
                 for opt_name in self.options_dict[sec_type][col_fam]:
-                    option = sec_type + "." + opt_name
+                    option = f"{sec_type}.{opt_name}"
                     all_options.append(option)
         all_options.extend(list(self.misc_options.keys()))
         return self.get_options(all_options)
@@ -267,7 +264,7 @@ class DatabaseOptions(DataSource):
         # this method generates a Rocksdb OPTIONS file in the INI format from
         # the options stored in self.options_dict
         this_path = os.path.abspath(os.path.dirname(__file__))
-        file_name = "../temp/OPTIONS_" + str(nonce) + ".tmp"
+        file_name = f"../temp/OPTIONS_{str(nonce)}.tmp"
         file_path = os.path.join(this_path, file_name)
         with open(file_path, "w") as fp:
             for section in self.options_dict:
@@ -318,7 +315,7 @@ class DatabaseOptions(DataSource):
                     if eval(cond.eval_expr):
                         cond.set_trigger({NO_COL_FAMILY: options})
                 except Exception as e:
-                    print("WARNING(DatabaseOptions) check_and_trigger:" + str(e))
+                    print(f"WARNING(DatabaseOptions) check_and_trigger:{str(e)}")
                 continue
 
             # for all the options that are not database-wide, we look for their
@@ -337,7 +334,7 @@ class DatabaseOptions(DataSource):
                         if eval(cond.eval_expr):
                             col_fam_options_dict[col_fam] = copy.deepcopy(options)
                     except Exception as e:
-                        print("WARNING(DatabaseOptions) check_and_trigger: " + str(e))
+                        print(f"WARNING(DatabaseOptions) check_and_trigger: {str(e)}")
             # Trigger for an OptionCondition object is of the form:
             # Dict[col_fam_name: List[option_value]]
             # where col_fam_name is the name of a column family for which

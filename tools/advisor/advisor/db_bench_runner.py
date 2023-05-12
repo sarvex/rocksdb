@@ -35,13 +35,11 @@ class DBBenchRunner(BenchmarkRunner):
 
     @staticmethod
     def get_opt_args_str(misc_options_dict):
-        # given a dictionary of options and their values, return a string
-        # that can be appended as command-line arguments
-        optional_args_str = ""
-        for option_name, option_value in misc_options_dict.items():
-            if option_value:
-                optional_args_str += " --" + option_name + "=" + str(option_value)
-        return optional_args_str
+        return "".join(
+            f" --{option_name}={str(option_value)}"
+            for option_name, option_value in misc_options_dict.items()
+            if option_value
+        )
 
     def __init__(self, positional_args, ods_args=None):
         # parse positional_args list appropriately
@@ -98,9 +96,10 @@ class DBBenchRunner(BenchmarkRunner):
                     # with the timestamp that db_bench will provide per printed
                     # perf_context
                     timestamp = int(time.time())
-                    perf_context_ts = {}
-                    for stat in perf_context.keys():
-                        perf_context_ts[stat] = {timestamp: int(perf_context[stat])}
+                    perf_context_ts = {
+                        stat: {timestamp: int(perf_context[stat])}
+                        for stat in perf_context
+                    }
                     output[self.PERF_CON] = perf_context_ts
                     perf_context_begins = False
                 elif line.startswith(self.DB_PATH):
@@ -149,7 +148,7 @@ class DBBenchRunner(BenchmarkRunner):
         )
         # generate an options configuration file
         options_file = curr_options.generate_options_config(nonce="12345")
-        optional_args_str += " --options_file=" + options_file
+        optional_args_str += f" --options_file={options_file}"
         return optional_args_str
 
     def _setup_db_before_experiment(self, curr_options, db_path):
@@ -157,37 +156,29 @@ class DBBenchRunner(BenchmarkRunner):
         try:
             shutil.rmtree(db_path, ignore_errors=True)
         except OSError as e:
-            print("Error: rmdir " + e.filename + " " + e.strerror)
+            print(f"Error: rmdir {e.filename} {e.strerror}")
         # setup database with a million keys using the fillrandom benchmark
-        command = "%s --benchmarks=fillrandom --db=%s --num=1000000" % (
-            self.db_bench_binary,
-            db_path,
-        )
+        command = f"{self.db_bench_binary} --benchmarks=fillrandom --db={db_path} --num=1000000"
         args_str = self._get_options_command_line_args_str(curr_options)
         command += args_str
         self._run_command(command)
 
     def _build_experiment_command(self, curr_options, db_path):
-        command = "%s --benchmarks=%s --statistics --perf_level=3 --db=%s" % (
-            self.db_bench_binary,
-            self.benchmark,
-            db_path,
-        )
+        command = f"{self.db_bench_binary} --benchmarks={self.benchmark} --statistics --perf_level=3 --db={db_path}"
         # fetch the command-line arguments string for providing Rocksdb options
         args_str = self._get_options_command_line_args_str(curr_options)
         # handle the command-line args passed in the constructor, these
         # arguments are specific to db_bench
         for cmd_line_arg in self.db_bench_args:
-            args_str += " --" + cmd_line_arg
+            args_str += f" --{cmd_line_arg}"
         command += args_str
         return command
 
     def _run_command(self, command):
-        out_file = open(self.OUTPUT_FILE, "w+")
-        err_file = open(self.ERROR_FILE, "w+")
-        print("executing... - " + command)
-        subprocess.call(command, shell=True, stdout=out_file, stderr=err_file)
-        out_file.close()
+        with open(self.OUTPUT_FILE, "w+") as out_file:
+            err_file = open(self.ERROR_FILE, "w+")
+            print(f"executing... - {command}")
+            subprocess.call(command, shell=True, stdout=out_file, stderr=err_file)
         err_file.close()
 
     def run_experiment(self, db_options, db_path):

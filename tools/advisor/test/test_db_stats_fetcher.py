@@ -102,15 +102,15 @@ class TestDatabasePerfContext(unittest.TestCase):
             "block_cache_hit_count": 830086,
         }
         timestamp = int(time.time())
-        perf_ts = {}
-        for key in perf_dict:
-            perf_ts[key] = {}
-            start_val = perf_dict[key]
-            for ix in range(5):
-                perf_ts[key][timestamp + (ix * 10)] = start_val + (2 * ix * ix)
+        perf_ts = {
+            key: {
+                timestamp + (ix * 10): start_val + (2 * ix * ix) for ix in range(5)
+            }
+            for key, start_val in perf_dict.items()
+        }
         db_perf_context = DatabasePerfContext(perf_ts, 10, True)
         timestamps = [timestamp + (ix * 10) for ix in range(1, 5, 1)]
-        values = [val for val in range(2, 15, 4)]
+        values = list(range(2, 15, 4))
         inner_dict = {timestamps[ix]: values[ix] for ix in range(4)}
         expected_keys_ts = {
             NO_ENTITY: {

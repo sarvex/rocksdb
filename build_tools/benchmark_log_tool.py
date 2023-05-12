@@ -64,40 +64,40 @@ class BenchmarkUtils:
         "job_id",
     ]
 
-    def sanity_check(row):
-        if "test" not in row:
-            logging.debug(f"not 'test' in row: {row}")
+    def sanity_check(self):
+        if "test" not in self:
+            logging.debug(f"not 'test' in row: {self}")
             return False
-        if row["test"] == "":
-            logging.debug(f"row['test'] == '': {row}")
+        if self["test"] == "":
+            logging.debug(f"row['test'] == '': {self}")
             return False
-        if "date" not in row:
-            logging.debug(f"not 'date' in row: {row}")
+        if "date" not in self:
+            logging.debug(f"not 'date' in row: {self}")
             return False
-        if "ops_sec" not in row:
-            logging.debug(f"not 'ops_sec' in row: {row}")
+        if "ops_sec" not in self:
+            logging.debug(f"not 'ops_sec' in row: {self}")
             return False
         try:
-            _ = int(row["ops_sec"])
+            _ = int(self["ops_sec"])
         except (ValueError, TypeError):
-            logging.debug(f"int(row['ops_sec']): {row}")
+            logging.debug(f"int(row['ops_sec']): {self}")
             return False
         try:
-            (_, _) = parser.parse(row["date"], fuzzy_with_tokens=True)
-        except (parser.ParserError):
+            (_, _) = parser.parse(self["date"], fuzzy_with_tokens=True)
+        except parser.ParserError:
             logging.error(
-                f"parser.parse((row['date']): not a valid format for date in row: {row}"
+                f"parser.parse((row['date']): not a valid format for date in row: {self}"
             )
             return False
         return True
 
-    def conform_opensearch(row):
-        (dt, _) = parser.parse(row["date"], fuzzy_with_tokens=True)
+    def conform_opensearch(self):
+        (dt, _) = parser.parse(self["date"], fuzzy_with_tokens=True)
         # create a test_date field, which was previously what was expected
         # repair the date field, which has what can be a WRONG ISO FORMAT, (no leading 0 on single-digit day-of-month)
         # e.g. 2022-07-1T00:14:55 should be 2022-07-01T00:14:55
-        row["test_date"] = dt.isoformat()
-        row["date"] = dt.isoformat()
+        self["test_date"] = dt.isoformat()
+        self["date"] = dt.isoformat()
         return {key.replace(".", "_"): value for key, value in row.items()}
 
 
@@ -108,11 +108,7 @@ class ResultParser:
         self.sep = re.compile(separator)
 
     def ignore(self, l_in: str):
-        if len(l_in) == 0:
-            return True
-        if l_in[0:1] == "#":
-            return True
-        return False
+        return True if not l_in else bool(l_in.startswith("#"))
 
     def line(self, line_in: str):
         """Parse a line into items
@@ -121,29 +117,25 @@ class ResultParser:
         line = line_in
         row = []
         while line != "":
-            match_item = self.field.match(line)
-            if match_item:
+            if match_item := self.field.match(line):
                 item = match_item.group(0)
                 row.append(item)
                 line = line[len(item) :]
+            elif match_intra := self.intra.match(line):
+                intra = match_intra.group(0)
+                # Count the separators
+                # If there are >1 then generate extra blank fields
+                # White space with no true separators fakes up a single separator
+                tabbed = self.sep.split(intra)
+                sep_count = len(tabbed) - 1
+                if sep_count == 0:
+                    sep_count = 1
+                row.extend("" for _ in range(sep_count - 1))
+                line = line[len(intra) :]
             else:
-                match_intra = self.intra.match(line)
-                if match_intra:
-                    intra = match_intra.group(0)
-                    # Count the separators
-                    # If there are >1 then generate extra blank fields
-                    # White space with no true separators fakes up a single separator
-                    tabbed = self.sep.split(intra)
-                    sep_count = len(tabbed) - 1
-                    if sep_count == 0:
-                        sep_count = 1
-                    for _ in range(sep_count - 1):
-                        row.append("")
-                    line = line[len(intra) :]
-                else:
-                    raise BenchmarkResultException(
-                        "Invalid TSV line", f"{line_in} at {line}"
-                    )
+                raise BenchmarkResultException(
+                    "Invalid TSV line", f"{line_in} at {line}"
+                )
         return row
 
     def parse(self, lines):
@@ -151,17 +143,12 @@ class ResultParser:
         rows = [self.line(line) for line in lines if not self.ignore(line)]
         header = rows[0]
         width = len(header)
-        records = [
-            {k: v for (k, v) in itertools.zip_longest(header, row[:width])}
-            for row in rows[1:]
-        ]
-        return records
+        return [dict(itertools.zip_longest(header, row[:width])) for row in rows[1:]]
 
 
 def load_report_from_tsv(filename: str):
-    file = open(filename, "r")
-    contents = file.readlines()
-    file.close()
+    with open(filename, "r") as file:
+        contents = file.readlines()
     parser = ResultParser()
     report = parser.parse(contents)
     logging.debug(f"Loaded TSV Report: {report}")

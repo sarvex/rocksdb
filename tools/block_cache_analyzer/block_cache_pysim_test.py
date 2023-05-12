@@ -33,13 +33,13 @@ def test_hash_table():
     table = HashTable()
     data_size = 10000
     for i in range(data_size):
-        table.insert("k{}".format(i), i, "v{}".format(i))
+        table.insert(f"k{i}", i, f"v{i}")
     for i in range(data_size):
-        assert table.lookup("k{}".format(i), i) is not None
+        assert table.lookup(f"k{i}", i) is not None
     for i in range(data_size):
-        table.delete("k{}".format(i), i)
+        table.delete(f"k{i}", i)
     for i in range(data_size):
-        assert table.lookup("k{}".format(i), i) is None
+        assert table.lookup(f"k{i}", i) is None
 
     truth_map = {}
     n = 1000000
@@ -47,12 +47,12 @@ def test_hash_table():
     for i in range(n):
         key_id = random.randint(0, records)
         v = random.randint(0, records)
-        key = "k{}".format(key_id)
+        key = f"k{key_id}"
         value = CacheEntry(v, v, v, v, v, v, v)
         action = random.randint(0, 10)
-        assert len(truth_map) == table.elements, "{} {} {}".format(
-            len(truth_map), table.elements, i
-        )
+        assert (
+            len(truth_map) == table.elements
+        ), f"{len(truth_map)} {table.elements} {i}"
         if action <= 8:
             if key in truth_map:
                 assert table.lookup(key, key_id) is not None
@@ -62,8 +62,7 @@ def test_hash_table():
             table.insert(key, key_id, value)
             truth_map[key] = value
         else:
-            deleted = table.delete(key, key_id)
-            if deleted:
+            if deleted := table.delete(key, key_id):
                 assert key in truth_map
             if key in truth_map:
                 del truth_map[key]
@@ -71,51 +70,43 @@ def test_hash_table():
     # Check all keys are unique in the sample set.
     for _i in range(10):
         samples = table.random_sample(kSampleSize)
-        unique_keys = {}
-        for sample in samples:
-            unique_keys[sample.key] = True
+        unique_keys = {sample.key: True for sample in samples}
         assert len(samples) == len(unique_keys)
 
     assert len(table) == len(truth_map)
-    for key in truth_map:
+    for key, value_ in truth_map.items():
         assert table.lookup(key, int(key[1:])) is not None
-        assert truth_map[key].value_size == table.lookup(key, int(key[1:])).value_size
+        assert value_.value_size == table.lookup(key, int(key[1:])).value_size
     print("Test hash table: Success")
 
 
 def assert_metrics(cache, expected_value, expected_value_size=1, custom_hashtable=True):
-    assert cache.used_size == expected_value[0], "Expected {}, Actual {}".format(
-        expected_value[0], cache.used_size
-    )
+    assert (
+        cache.used_size == expected_value[0]
+    ), f"Expected {expected_value[0]}, Actual {cache.used_size}"
     assert (
         cache.miss_ratio_stats.num_accesses == expected_value[1]
-    ), "Expected {}, Actual {}".format(
-        expected_value[1], cache.miss_ratio_stats.num_accesses
-    )
+    ), f"Expected {expected_value[1]}, Actual {cache.miss_ratio_stats.num_accesses}"
     assert (
         cache.miss_ratio_stats.num_misses == expected_value[2]
-    ), "Expected {}, Actual {}".format(
-        expected_value[2], cache.miss_ratio_stats.num_misses
-    )
+    ), f"Expected {expected_value[2]}, Actual {cache.miss_ratio_stats.num_misses}"
     assert len(cache.table) == len(expected_value[3]) + len(
         expected_value[4]
-    ), "Expected {}, Actual {}".format(
-        len(expected_value[3]) + len(expected_value[4]), cache.table.elements
-    )
+    ), f"Expected {len(expected_value[3]) + len(expected_value[4])}, Actual {cache.table.elements}"
     for expeceted_k in expected_value[3]:
         if custom_hashtable:
-            val = cache.table.lookup("b{}".format(expeceted_k), expeceted_k)
+            val = cache.table.lookup(f"b{expeceted_k}", expeceted_k)
         else:
-            val = cache.table["b{}".format(expeceted_k)]
-        assert val is not None, "Expected {} Actual: Not Exist {}, Table: {}".format(
-            expeceted_k, expected_value, cache.table
-        )
+            val = cache.table[f"b{expeceted_k}"]
+        assert (
+            val is not None
+        ), f"Expected {expeceted_k} Actual: Not Exist {expected_value}, Table: {cache.table}"
         assert val.value_size == expected_value_size
     for expeceted_k in expected_value[4]:
         if custom_hashtable:
-            val = cache.table.lookup("g0-{}".format(expeceted_k), expeceted_k)
+            val = cache.table.lookup(f"g0-{expeceted_k}", expeceted_k)
         else:
-            val = cache.table["g0-{}".format(expeceted_k)]
+            val = cache.table[f"g0-{expeceted_k}"]
         assert val is not None
         assert val.value_size == expected_value_size
 
@@ -224,19 +215,14 @@ def test_cache(cache, expected_value, custom_hashtable=True):
     )
     sequence = [k1, k1, k2, k3, k3, k3]
     index = 0
-    expected_values = []
-    # Access k1, miss.
-    expected_values.append([1, 1, 1, [1], []])
-    # Access k1, hit.
-    expected_values.append([1, 2, 1, [1], []])
-    # Access k2, miss.
-    expected_values.append([2, 3, 2, [1, 2], []])
-    # Access k3, miss.
-    expected_values.append([3, 4, 3, [1, 2, 3], []])
-    # Access k3, hit.
-    expected_values.append([3, 5, 3, [1, 2, 3], []])
-    # Access k3, hit.
-    expected_values.append([3, 6, 3, [1, 2, 3], []])
+    expected_values = [
+        [1, 1, 1, [1], []],
+        [1, 2, 1, [1], []],
+        [2, 3, 2, [1, 2], []],
+        [3, 4, 3, [1, 2, 3], []],
+        [3, 5, 3, [1, 2, 3], []],
+        [3, 6, 3, [1, 2, 3], []],
+    ]
     access_time = 0
     for access in sequence:
         access.access_time = access_time
@@ -265,8 +251,7 @@ def test_lru_cache(cache, custom_hashtable):
 
 def test_mru_cache():
     print("Test MRU cache")
-    policies = []
-    policies.append(MRUPolicy())
+    policies = [MRUPolicy()]
     # Access k4, miss. evict k3
     test_cache(
         ThompsonSamplingCache(3, False, policies, cost_class_label=None),
@@ -277,8 +262,7 @@ def test_mru_cache():
 
 def test_lfu_cache():
     print("Test LFU cache")
-    policies = []
-    policies.append(LFUPolicy())
+    policies = [LFUPolicy()]
     # Access k4, miss. evict k2
     test_cache(
         ThompsonSamplingCache(3, False, policies, cost_class_label=None),
@@ -288,7 +272,7 @@ def test_lfu_cache():
 
 
 def test_mix(cache):
-    print("Test Mix {} cache".format(cache.cache_name()))
+    print(f"Test Mix {cache.cache_name()} cache")
     n = 100000
     records = 100
     block_size_table = {}
@@ -337,13 +321,11 @@ def test_mix(cache):
     else:
         assert cache.used_size <= cache.cache_size
         all_values = cache.table.values()
-        cached_size = 0
-        for value in all_values:
-            cached_size += value.value_size
-        assert cached_size == cache.used_size, "Expeced {} Actual {}".format(
-            cache.used_size, cached_size
-        )
-    print("Test Mix {} cache: Success".format(cache.cache_name()))
+        cached_size = sum(value.value_size for value in all_values)
+        assert (
+            cached_size == cache.used_size
+        ), f"Expeced {cache.used_size} Actual {cached_size}"
+    print(f"Test Mix {cache.cache_name()} cache: Success")
 
 
 def test_end_to_end():
@@ -365,28 +347,27 @@ def test_end_to_end():
             level = random.randint(0, nlevels)
             fd = random.randint(0, nfds)
             now = i * kMicrosInSecond
-            access_record = ""
-            access_record += "{},".format(now)
-            access_record += "{},".format(key_id)
-            access_record += "{},".format(9)  # block type
-            access_record += "{},".format(block_size)  # block size
-            access_record += "{},".format(cf_id)
-            access_record += "cf_{},".format(cf_id)
-            access_record += "{},".format(level)
-            access_record += "{},".format(fd)
-            access_record += "{},".format(key_id % 3)  # caller
-            access_record += "{},".format(0)  # no insert
-            access_record += "{},".format(i)  # get_id
-            access_record += "{},".format(i)  # key_id
-            access_record += "{},".format(100)  # kv_size
-            access_record += "{},".format(1)  # is_hit
-            access_record += "{},".format(1)  # referenced_key_exist_in_block
-            access_record += "{},".format(10)  # num_keys_in_block
-            access_record += "{},".format(1)  # table_id
-            access_record += "{},".format(0)  # seq_number
-            access_record += "{},".format(10)  # block key size
-            access_record += "{},".format(20)  # key size
-            access_record += "{},".format(0)  # block offset
+            access_record = f"{now},"
+            access_record += f"{key_id},"
+            access_record += '9,'
+            access_record += f"{block_size},"
+            access_record += f"{cf_id},"
+            access_record += f"cf_{cf_id},"
+            access_record += f"{level},"
+            access_record += f"{fd},"
+            access_record += f"{key_id % 3},"
+            access_record += '0,'
+            access_record += f"{i},"
+            access_record += f"{i},"
+            access_record += '100,'
+            access_record += '1,'
+            access_record += '1,'
+            access_record += '10,'
+            access_record += '1,'
+            access_record += '0,'
+            access_record += '10,'
+            access_record += '20,'
+            access_record += '0,'
             access_record = access_record[:-1]
             access_records += access_record + "\n"
         trace_file.write(access_records)
@@ -418,20 +399,18 @@ def test_end_to_end():
         assert cache_ms["opt"].miss_ratio_stats.miss_ratio() <= ms
         assert cache.used_size <= cache.cache_size
         all_values = cache.table.values()
-        cached_size = 0
-        for value in all_values:
-            cached_size += value.value_size
-        assert cached_size == cache.used_size, "Expeced {} Actual {}".format(
-            cache.used_size, cached_size
-        )
-        print("Test All {}: Success".format(cache.cache_name()))
+        cached_size = sum(value.value_size for value in all_values)
+        assert (
+            cached_size == cache.used_size
+        ), f"Expeced {cache.used_size} Actual {cached_size}"
+        print(f"Test All {cache.cache_name()}: Success")
 
     os.remove(trace_file_path)
     print("Test All: Success")
 
 
 def test_hybrid(cache):
-    print("Test {} cache".format(cache.cache_name()))
+    print(f"Test {cache.cache_name()} cache")
     k = TraceRecord(
         access_time=0,
         block_id=1,
@@ -528,9 +507,9 @@ def test_hybrid(cache):
     k.kv_size = 1
     cache.access(k)
     assert_metrics(
-        cache, [kSampleSize, 103, 99, [i for i in range(101 - kSampleSize, 101)], []]
+        cache, [kSampleSize, 103, 99, list(range(101 - kSampleSize, 101)), []]
     )
-    print("Test {} cache: Success".format(cache.cache_name()))
+    print(f"Test {cache.cache_name()} cache: Success")
 
 
 def test_opt_cache():
@@ -725,7 +704,7 @@ if __name__ == "__main__":
     ]:
         for enable_row_cache in [0, 1, 2]:
             cache_type_str = cache_type
-            if cache_type != "opt" and cache_type != "trace":
+            if cache_type_str not in ["opt", "trace"]:
                 if enable_row_cache == 1:
                     cache_type_str += "_hybrid"
                 elif enable_row_cache == 2:

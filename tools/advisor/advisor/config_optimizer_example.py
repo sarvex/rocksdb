@@ -48,7 +48,9 @@ def main(args):
     print(
         "Final configuration in: " + final_db_options.generate_options_config("final")
     )
-    print("Final miscellaneous options: " + repr(final_db_options.get_misc_options()))
+    print(
+        f"Final miscellaneous options: {repr(final_db_options.get_misc_options())}"
+    )
 
 
 if __name__ == "__main__":

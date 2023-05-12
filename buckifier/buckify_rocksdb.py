@@ -39,7 +39,7 @@ _EXPORTED_TEST_LIBS = ["env_basic_test"]
 # Parse src.mk files as a Dictionary of
 # VAR_NAME => list of files
 def parse_src_mk(repo_path):
-    src_mk = repo_path + "/src.mk"
+    src_mk = f"{repo_path}/src.mk"
     src_files = {}
     for line in open(src_mk):
         line = line.strip()
@@ -64,16 +64,20 @@ def get_cc_files(repo_path):
         if "java" in root:
             # Skip java
             continue
-        for filename in fnmatch.filter(filenames, "*.cc"):
-            cc_files.append(os.path.join(root, filename))
-        for filename in fnmatch.filter(filenames, "*.c"):
-            cc_files.append(os.path.join(root, filename))
+        cc_files.extend(
+            os.path.join(root, filename)
+            for filename in fnmatch.filter(filenames, "*.cc")
+        )
+        cc_files.extend(
+            os.path.join(root, filename)
+            for filename in fnmatch.filter(filenames, "*.c")
+        )
     return cc_files
 
 
 # Get non_parallel tests from Makefile
 def get_non_parallel_tests(repo_path):
-    Makefile = repo_path + "/Makefile"
+    Makefile = f"{repo_path}/Makefile"
 
     s = set({})
 
@@ -134,7 +138,7 @@ def generate_targets(repo_path, deps_map):
         # in how the file was generated.
         extra_argv = " '{0}'".format(" ".join(sys.argv[1].split()))
 
-    TARGETS = TARGETSBuilder("%s/TARGETS" % repo_path, extra_argv)
+    TARGETS = TARGETSBuilder(f"{repo_path}/TARGETS", extra_argv)
 
     # rocksdb_lib
     TARGETS.add_library(
@@ -218,7 +222,7 @@ def generate_targets(repo_path, deps_map):
     # TARGETS.add_c_test() to include other C tests too.
     for test_src in src_mk.get("TEST_MAIN_SOURCES_C", []):
         if test_src != "db/c_test.c":
-            print("Don't know how to deal with " + test_src)
+            print(f"Don't know how to deal with {test_src}")
             return False
     TARGETS.add_c_test()
 
@@ -226,15 +230,18 @@ def generate_targets(repo_path, deps_map):
         with open(f"{repo_path}/buckifier/bench.json") as json_file:
             fast_fancy_bench_config_list = json.load(json_file)
             for config_dict in fast_fancy_bench_config_list:
-                clean_benchmarks = {}
                 benchmarks = config_dict["benchmarks"]
-                for binary, benchmark_dict in benchmarks.items():
-                    clean_benchmarks[binary] = {}
-                    for benchmark, overloaded_metric_list in benchmark_dict.items():
-                        clean_benchmarks[binary][benchmark] = []
-                        for metric in overloaded_metric_list:
-                            if not isinstance(metric, dict):
-                                clean_benchmarks[binary][benchmark].append(metric)
+                clean_benchmarks = {
+                    binary: {
+                        benchmark: [
+                            metric
+                            for metric in overloaded_metric_list
+                            if not isinstance(metric, dict)
+                        ]
+                        for benchmark, overloaded_metric_list in benchmark_dict.items()
+                    }
+                    for binary, benchmark_dict in benchmarks.items()
+                }
                 TARGETS.add_fancy_bench_config(
                     config_dict["name"],
                     clean_benchmarks,
@@ -247,15 +254,18 @@ def generate_targets(repo_path, deps_map):
         with open(f"{repo_path}/buckifier/bench-slow.json") as json_file:
             slow_fancy_bench_config_list = json.load(json_file)
             for config_dict in slow_fancy_bench_config_list:
-                clean_benchmarks = {}
                 benchmarks = config_dict["benchmarks"]
-                for binary, benchmark_dict in benchmarks.items():
-                    clean_benchmarks[binary] = {}
-                    for benchmark, overloaded_metric_list in benchmark_dict.items():
-                        clean_benchmarks[binary][benchmark] = []
-                        for metric in overloaded_metric_list:
-                            if not isinstance(metric, dict):
-                                clean_benchmarks[binary][benchmark].append(metric)
+                clean_benchmarks = {
+                    binary: {
+                        benchmark: [
+                            metric
+                            for metric in overloaded_metric_list
+                            if not isinstance(metric, dict)
+                        ]
+                        for benchmark, overloaded_metric_list in benchmark_dict.items()
+                    }
+                    for binary, benchmark_dict in benchmarks.items()
+                }
             for config_dict in slow_fancy_bench_config_list:
                 TARGETS.add_fancy_bench_config(
                     config_dict["name"] + "_slow",
@@ -265,8 +275,6 @@ def generate_targets(repo_path, deps_map):
                     config_dict["sl_iterations"],
                     config_dict["regression_threshold"],
                 )
-    # it is better servicelab experiments break
-    # than rocksdb github ci
     except Exception:
         pass
 
@@ -275,18 +283,18 @@ def generate_targets(repo_path, deps_map):
     for test_src in src_mk.get("TEST_MAIN_SOURCES", []):
         test = test_src.split(".c")[0].strip().split("/")[-1].strip()
         test_source_map[test] = test_src
-        print("" + test + " " + test_src)
+        print(f"{test} {test_src}")
 
     for target_alias, deps in deps_map.items():
         for test, test_src in sorted(test_source_map.items()):
             if len(test) == 0:
-                print(ColorString.warning("Failed to get test name for %s" % test_src))
+                print(ColorString.warning(f"Failed to get test name for {test_src}"))
                 continue
 
-            test_target_name = test if not target_alias else test + "_" + target_alias
+            test_target_name = test if not target_alias else f"{test}_{target_alias}"
 
             if test in _EXPORTED_TEST_LIBS:
-                test_library = "%s_lib" % test_target_name
+                test_library = f"{test_target_name}_lib"
                 TARGETS.add_library(
                     test_library,
                     [test_src],
@@ -296,8 +304,10 @@ def generate_targets(repo_path, deps_map):
                 TARGETS.register_test(
                     test_target_name,
                     test_src,
-                    deps=json.dumps(deps["extra_deps"] + [":" + test_library]),
-                    extra_compiler_flags=json.dumps(deps["extra_compiler_flags"]),
+                    deps=json.dumps(deps["extra_deps"] + [f":{test_library}"]),
+                    extra_compiler_flags=json.dumps(
+                        deps["extra_compiler_flags"]
+                    ),
                 )
             else:
                 TARGETS.register_test(
@@ -318,9 +328,7 @@ def get_rocksdb_path():
     # rocksdb = {script_dir}/..
     script_dir = os.path.dirname(sys.argv[0])
     script_dir = os.path.abspath(script_dir)
-    rocksdb_path = os.path.abspath(os.path.join(script_dir, "../"))
-
-    return rocksdb_path
+    return os.path.abspath(os.path.join(script_dir, "../"))
 
 
 def exit_with_error(msg):

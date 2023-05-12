@@ -218,12 +218,12 @@ def is_release_mode():
 
 
 def get_dbname(test_name):
-    test_dir_name = "rocksdb_crashtest_" + test_name
+    test_dir_name = f"rocksdb_crashtest_{test_name}"
     test_tmpdir = os.environ.get(_TEST_DIR_ENV_VAR)
     if test_tmpdir is None or test_tmpdir == "":
         dbname = tempfile.mkdtemp(prefix=test_dir_name)
     else:
-        dbname = test_tmpdir + "/" + test_dir_name
+        dbname = f"{test_tmpdir}/{test_dir_name}"
         shutil.rmtree(dbname, True)
         if cleanup_cmd is not None:
             print("Running DB cleanup command - %s\n" % cleanup_cmd)
@@ -240,13 +240,13 @@ def setup_expected_values_dir():
     global expected_values_dir
     if expected_values_dir is not None:
         return expected_values_dir
-    expected_dir_prefix = "rocksdb_crashtest_expected_"
     test_tmpdir = os.environ.get(_TEST_DIR_ENV_VAR)
     if test_tmpdir is None or test_tmpdir == "":
+        expected_dir_prefix = "rocksdb_crashtest_expected_"
         expected_values_dir = tempfile.mkdtemp(prefix=expected_dir_prefix)
     else:
         # if tmpdir is specified, store the expected_values_dir under that dir
-        expected_values_dir = test_tmpdir + "/rocksdb_crashtest_expected"
+        expected_values_dir = f"{test_tmpdir}/rocksdb_crashtest_expected"
         if os.path.exists(expected_values_dir):
             shutil.rmtree(expected_values_dir)
         os.mkdir(expected_values_dir)
@@ -511,8 +511,7 @@ def finalize_and_sanitize(src_params):
     ) and not is_direct_io_supported(dest_params["db"]):
         if is_release_mode():
             print(
-                "{} does not support direct IO. Disabling use_direct_reads and "
-                "use_direct_io_for_flush_and_compaction.\n".format(dest_params["db"])
+                f'{dest_params["db"]} does not support direct IO. Disabling use_direct_reads and use_direct_io_for_flush_and_compaction.\n'
             )
             dest_params["use_direct_reads"] = 0
             dest_params["use_direct_io_for_flush_and_compaction"] = 0
@@ -569,9 +568,11 @@ def finalize_and_sanitize(src_params):
         # now assertion failures are triggered.
         dest_params["compaction_ttl"] = 0
         dest_params["periodic_compaction_seconds"] = 0
-    if dest_params["partition_filters"] == 1:
-        if dest_params["index_type"] != 2:
-            dest_params["partition_filters"] = 0
+    if (
+        dest_params["partition_filters"] == 1
+        and dest_params["index_type"] != 2
+    ):
+        dest_params["partition_filters"] = 0
     if dest_params.get("atomic_flush", 0) == 1:
         # disable pipelined write when atomic flush is used.
         dest_params["enable_pipelined_write"] = 0
@@ -627,16 +628,16 @@ def finalize_and_sanitize(src_params):
 def gen_cmd_params(args):
     params = {}
 
-    params.update(default_params)
+    params |= default_params
     if args.test_type == "blackbox":
         params.update(blackbox_default_params)
-    if args.test_type == "whitebox":
+    elif args.test_type == "whitebox":
         params.update(whitebox_default_params)
     if args.simple:
         params.update(simple_default_params)
         if args.test_type == "blackbox":
             params.update(blackbox_simple_default_params)
-        if args.test_type == "whitebox":
+        elif args.test_type == "whitebox":
             params.update(whitebox_simple_default_params)
     if args.cf_consistency:
         params.update(cf_consistency_params)
@@ -673,11 +674,13 @@ def gen_cmd_params(args):
 
 def gen_cmd(params, unknown_params):
     finalzied_params = finalize_and_sanitize(params)
-    cmd = (
+    return (
         [stress_cmd]
         + [
             "--{0}={1}".format(k, v)
-            for k, v in [(k, finalzied_params[k]) for k in sorted(finalzied_params)]
+            for k, v in [
+                (k, finalzied_params[k]) for k in sorted(finalzied_params)
+            ]
             if k
             not in {
                 "test_type",
@@ -699,7 +702,6 @@ def gen_cmd(params, unknown_params):
         ]
         + unknown_params
     )
-    return cmd
 
 
 def execute_cmd(cmd, timeout):
@@ -754,7 +756,7 @@ def blackbox_crash_main(args, unknown_args):
         for line in errs.split("\n"):
             if line != "" and not line.startswith("WARNING"):
                 print("stderr has error message:")
-                print("***" + line + "***")
+                print(f"***{line}***")
 
         time.sleep(1)  # time to stabilize before the next run
 
@@ -798,34 +800,27 @@ def whitebox_crash_main(args, unknown_args):
             # increases change of triggering them. Mode 2 covers even less
             # frequent kill points and further increases triggering change.
             if kill_mode == 0:
-                additional_opts.update(
-                    {
-                        "kill_random_test": kill_random_test,
-                    }
-                )
+                additional_opts["kill_random_test"] = kill_random_test
             elif kill_mode == 1:
-                if cmd_params.get("disable_wal", 0) == 1:
-                    my_kill_odd = kill_random_test // 50 + 1
-                else:
-                    my_kill_odd = kill_random_test // 10 + 1
-                additional_opts.update(
-                    {
-                        "kill_random_test": my_kill_odd,
-                        "kill_exclude_prefixes": "WritableFileWriter::Append,"
-                        + "WritableFileWriter::WriteBuffered",
-                    }
+                my_kill_odd = (
+                    kill_random_test // 50 + 1
+                    if cmd_params.get("disable_wal", 0) == 1
+                    else kill_random_test // 10 + 1
                 )
+                additional_opts |= {
+                    "kill_random_test": my_kill_odd,
+                    "kill_exclude_prefixes": "WritableFileWriter::Append,"
+                    + "WritableFileWriter::WriteBuffered",
+                }
             elif kill_mode == 2:
                 # TODO: May need to adjust random odds if kill_random_test
                 # is too small.
-                additional_opts.update(
-                    {
-                        "kill_random_test": (kill_random_test // 5000 + 1),
-                        "kill_exclude_prefixes": "WritableFileWriter::Append,"
-                        "WritableFileWriter::WriteBuffered,"
-                        "PosixMmapFile::Allocate,WritableFileWriter::Flush",
-                    }
-                )
+                additional_opts |= {
+                    "kill_random_test": (kill_random_test // 5000 + 1),
+                    "kill_exclude_prefixes": "WritableFileWriter::Append,"
+                    "WritableFileWriter::WriteBuffered,"
+                    "PosixMmapFile::Allocate,WritableFileWriter::Flush",
+                }
             # Run kill mode 0, 1 and 2 by turn.
             kill_mode = (kill_mode + 1) % 3
         elif check_mode == 1:
@@ -838,11 +833,7 @@ def whitebox_crash_main(args, unknown_args):
             # Single level universal has a lot of special logic. Ensure we cover
             # it sometimes.
             if random.randint(0, 1) == 1:
-                additional_opts.update(
-                    {
-                        "num_levels": 1,
-                    }
-                )
+                additional_opts["num_levels"] = 1
         elif check_mode == 2:
             # normal run with FIFO compaction mode
             # ops_per_thread is divided by 5 because FIFO compaction
@@ -860,7 +851,7 @@ def whitebox_crash_main(args, unknown_args):
             }
 
         cur_compaction_style = additional_opts.get("compaction_style", cmd_params.get("compaction_style", 0))
-        if prev_compaction_style != -1 and prev_compaction_style != cur_compaction_style:
+        if prev_compaction_style not in [-1, cur_compaction_style]:
             print("`compaction_style` is changed in current run so `destroy_db_initially` is set to 1 as a short-term solution to avoid cycling through previous db of different compaction style." + "\n")
             additional_opts["destroy_db_initially"] = 1
         prev_compaction_style = cur_compaction_style
@@ -914,7 +905,7 @@ def whitebox_crash_main(args, unknown_args):
 
         stderrdata = stderrdata.lower()
         errorcount = stderrdata.count("error") - stderrdata.count("got errors 0 times")
-        print("#times error occurred in output is " + str(errorcount) + "\n")
+        print(f"#times error occurred in output is {str(errorcount)}" + "\n")
 
         if errorcount > 0:
             print("TEST FAILED. Output has 'error'!!!\n")
@@ -984,15 +975,14 @@ def main():
     )
 
     for k, v in all_params.items():
-        parser.add_argument("--" + k, type=type(v() if callable(v) else v))
+        parser.add_argument(f"--{k}", type=type(v() if callable(v) else v))
     # unknown_args are passed directly to db_stress
     args, unknown_args = parser.parse_known_args()
 
     test_tmpdir = os.environ.get(_TEST_DIR_ENV_VAR)
     if test_tmpdir is not None and not os.path.isdir(test_tmpdir):
         print(
-            "%s env var is set to a non-existent directory: %s"
-            % (_TEST_DIR_ENV_VAR, test_tmpdir)
+            f"{_TEST_DIR_ENV_VAR} env var is set to a non-existent directory: {test_tmpdir}"
         )
         sys.exit(1)
 

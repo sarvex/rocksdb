@@ -40,26 +40,20 @@ class Rule(Section):
         # element list before storing it in self.suggestions or
         # self.conditions.
         if key == "conditions":
-            if isinstance(value, str):
-                self.conditions = [value]
-            else:
-                self.conditions = value
-        elif key == "suggestions":
-            if isinstance(value, str):
-                self.suggestions = [value]
-            else:
-                self.suggestions = value
+            self.conditions = [value] if isinstance(value, str) else value
         elif key == "overlap_time_period":
             self.overlap_time_seconds = value
+        elif key == "suggestions":
+            self.suggestions = [value] if isinstance(value, str) else value
 
     def get_suggestions(self):
         return self.suggestions
 
     def perform_checks(self):
         if not self.conditions or len(self.conditions) < 1:
-            raise ValueError(self.name + ": rule must have at least one condition")
+            raise ValueError(f"{self.name}: rule must have at least one condition")
         if not self.suggestions or len(self.suggestions) < 1:
-            raise ValueError(self.name + ": rule must have at least one suggestion")
+            raise ValueError(f"{self.name}: rule must have at least one suggestion")
         if self.overlap_time_seconds:
             if len(self.conditions) != 2:
                 raise ValueError(
@@ -72,15 +66,14 @@ class Rule(Section):
                 raise ValueError(
                     self.name + ": overlap_time_seconds format: \d+[s|m|h|d]"
                 )
-            else:  # convert to seconds
-                in_seconds = int(self.overlap_time_seconds[:-1])
-                if self.overlap_time_seconds[-1] == "m":
-                    in_seconds *= 60
-                elif self.overlap_time_seconds[-1] == "h":
-                    in_seconds *= 60 * 60
-                elif self.overlap_time_seconds[-1] == "d":
-                    in_seconds *= 24 * 60 * 60
-                self.overlap_time_seconds = in_seconds
+            in_seconds = int(self.overlap_time_seconds[:-1])
+            if self.overlap_time_seconds[-1] == "m":
+                in_seconds *= 60
+            elif self.overlap_time_seconds[-1] == "h":
+                in_seconds *= 60 * 60
+            elif self.overlap_time_seconds[-1] == "d":
+                in_seconds *= 24 * 60 * 60
+            self.overlap_time_seconds = in_seconds
 
     def get_overlap_timestamps(self, key1_trigger_epochs, key2_trigger_epochs):
         # this method takes in 2 timeseries i.e. timestamps at which the
@@ -121,25 +114,24 @@ class Rule(Section):
         if self.overlap_time_seconds:
             condition1 = conditions_dict[self.conditions[0]]
             condition2 = conditions_dict[self.conditions[1]]
-            if not (
-                condition1.get_data_source() is DataSource.Type.TIME_SERIES
-                and condition2.get_data_source() is DataSource.Type.TIME_SERIES
+            if (
+                condition1.get_data_source() is not DataSource.Type.TIME_SERIES
+                or condition2.get_data_source() is not DataSource.Type.TIME_SERIES
             ):
-                raise ValueError(self.name + ": need 2 timeseries conditions")
+                raise ValueError(f"{self.name}: need 2 timeseries conditions")
 
             map1 = condition1.get_trigger()
             map2 = condition2.get_trigger()
-            if not (map1 and map2):
+            if not map1 or not map2:
                 return False
 
-            self.trigger_entities = {}
             is_triggered = False
+            self.trigger_entities = {}
             entity_intersection = set(map1.keys()).intersection(set(map2.keys()))
             for entity in entity_intersection:
-                overlap_timestamps_pair = self.get_overlap_timestamps(
+                if overlap_timestamps_pair := self.get_overlap_timestamps(
                     list(map1[entity].keys()), list(map2[entity].keys())
-                )
-                if overlap_timestamps_pair:
+                ):
                     self.trigger_entities[entity] = overlap_timestamps_pair
                     is_triggered = True
             if is_triggered:
@@ -171,7 +163,7 @@ class Rule(Section):
                         self.trigger_entities = self.trigger_entities.intersection(
                             cond_entities
                         )
-                if not (self.trigger_entities or self.trigger_column_families):
+                if not self.trigger_entities and not self.trigger_column_families:
                     all_conditions_triggered = False
                     break
             if not all_conditions_triggered:  # clean up if rule not triggered
@@ -181,14 +173,14 @@ class Rule(Section):
 
     def __repr__(self):
         # Append conditions
-        rule_string = "Rule: " + self.name + " has conditions:: "
+        rule_string = f"Rule: {self.name} has conditions:: "
         is_first = True
         for cond in self.conditions:
             if is_first:
                 rule_string += cond
                 is_first = False
             else:
-                rule_string += " AND " + cond
+                rule_string += f" AND {cond}"
         # Append suggestions
         rule_string += "\nsuggestions:: "
         is_first = True
@@ -197,11 +189,11 @@ class Rule(Section):
                 rule_string += sugg
                 is_first = False
             else:
-                rule_string += ", " + sugg
+                rule_string += f", {sugg}"
         if self.trigger_entities:
-            rule_string += ", entities:: " + str(self.trigger_entities)
+            rule_string += f", entities:: {str(self.trigger_entities)}"
         if self.trigger_column_families:
-            rule_string += ", col_fam:: " + str(self.trigger_column_families)
+            rule_string += f", col_fam:: {str(self.trigger_column_families)}"
         # Return constructed string
         return rule_string
 
@@ -230,33 +222,30 @@ class Suggestion(Section):
             self.option = value
         elif key == "action":
             if self.option and not value:
-                raise ValueError(self.name + ": provide action for option")
+                raise ValueError(f"{self.name}: provide action for option")
             self.action = self.Action[value]
         elif key == "suggested_values":
-            if isinstance(value, str):
-                self.suggested_values = [value]
-            else:
-                self.suggested_values = value
+            self.suggested_values = [value] if isinstance(value, str) else value
         elif key == "description":
             self.description = value
 
     def perform_checks(self):
         if not self.description:
             if not self.option:
-                raise ValueError(self.name + ": provide option or description")
+                raise ValueError(f"{self.name}: provide option or description")
             if not self.action:
-                raise ValueError(self.name + ": provide action for option")
+                raise ValueError(f"{self.name}: provide action for option")
             if self.action is self.Action.set and not self.suggested_values:
-                raise ValueError(self.name + ": provide suggested value for option")
+                raise ValueError(f"{self.name}: provide suggested value for option")
 
     def __repr__(self):
-        sugg_string = "Suggestion: " + self.name
+        sugg_string = f"Suggestion: {self.name}"
         if self.description:
-            sugg_string += " description : " + self.description
+            sugg_string += f" description : {self.description}"
         else:
-            sugg_string += " option : " + self.option + " action : " + self.action.name
+            sugg_string += f" option : {self.option} action : {self.action.name}"
             if self.suggested_values:
-                sugg_string += " suggested_values : " + str(self.suggested_values)
+                sugg_string += f" suggested_values : {str(self.suggested_values)}"
         return sugg_string
 
 
@@ -268,7 +257,7 @@ class Condition(Section):
 
     def perform_checks(self):
         if not self.data_source:
-            raise ValueError(self.name + ": condition not tied to data source")
+            raise ValueError(f"{self.name}: condition not tied to data source")
 
     def set_data_source(self, data_source):
         self.data_source = data_source
@@ -286,13 +275,11 @@ class Condition(Section):
         return self.trigger
 
     def is_triggered(self):
-        if self.trigger:
-            return True
-        return False
+        return bool(self.trigger)
 
     def set_parameter(self, key, value):
         # must be defined by the subclass
-        raise NotImplementedError(self.name + ": provide source for condition")
+        raise NotImplementedError(f"{self.name}: provide source for condition")
 
 
 class LogCondition(Condition):
@@ -309,11 +296,11 @@ class LogCondition(Condition):
     def perform_checks(self):
         super().perform_checks()
         if not self.regex:
-            raise ValueError(self.name + ": provide regex for log condition")
+            raise ValueError(f"{self.name}: provide regex for log condition")
 
     def __repr__(self):
-        log_cond_str = "LogCondition: " + self.name
-        log_cond_str += " regex: " + self.regex
+        log_cond_str = f"LogCondition: {self.name}"
+        log_cond_str += f" regex: {self.regex}"
         # if self.trigger:
         #     log_cond_str += (" trigger: " + str(self.trigger))
         return log_cond_str
@@ -327,27 +314,24 @@ class OptionCondition(Condition):
         return base_condition
 
     def set_parameter(self, key, value):
-        if key == "options":
-            if isinstance(value, str):
-                self.options = [value]
-            else:
-                self.options = value
-        elif key == "evaluate":
+        if key == "evaluate":
             self.eval_expr = value
+        elif key == "options":
+            self.options = [value] if isinstance(value, str) else value
 
     def perform_checks(self):
         super().perform_checks()
         if not self.options:
-            raise ValueError(self.name + ": options missing in condition")
+            raise ValueError(f"{self.name}: options missing in condition")
         if not self.eval_expr:
-            raise ValueError(self.name + ": expression missing in condition")
+            raise ValueError(f"{self.name}: expression missing in condition")
 
     def __repr__(self):
-        opt_cond_str = "OptionCondition: " + self.name
-        opt_cond_str += " options: " + str(self.options)
-        opt_cond_str += " expression: " + self.eval_expr
+        opt_cond_str = f"OptionCondition: {self.name}"
+        opt_cond_str += f" options: {str(self.options)}"
+        opt_cond_str += f" expression: {self.eval_expr}"
         if self.trigger:
-            opt_cond_str += " trigger: " + str(self.trigger)
+            opt_cond_str += f" trigger: {str(self.trigger)}"
         return opt_cond_str
 
 
@@ -359,53 +343,50 @@ class TimeSeriesCondition(Condition):
         return base_condition
 
     def set_parameter(self, key, value):
-        if key == "keys":
-            if isinstance(value, str):
-                self.keys = [value]
-            else:
-                self.keys = value
+        if key == "aggregation_op":
+            self.aggregation_op = TimeSeriesData.AggregationOperator[value]
         elif key == "behavior":
             self.behavior = TimeSeriesData.Behavior[value]
+        elif key == "evaluate":
+            self.expression = value
+        elif key == "keys":
+            self.keys = [value] if isinstance(value, str) else value
         elif key == "rate_threshold":
             self.rate_threshold = float(value)
         elif key == "window_sec":
             self.window_sec = int(value)
-        elif key == "evaluate":
-            self.expression = value
-        elif key == "aggregation_op":
-            self.aggregation_op = TimeSeriesData.AggregationOperator[value]
 
     def perform_checks(self):
         if not self.keys:
-            raise ValueError(self.name + ": specify timeseries key")
+            raise ValueError(f"{self.name}: specify timeseries key")
         if not self.behavior:
-            raise ValueError(self.name + ": specify triggering behavior")
+            raise ValueError(f"{self.name}: specify triggering behavior")
         if self.behavior is TimeSeriesData.Behavior.bursty:
             if not self.rate_threshold:
-                raise ValueError(self.name + ": specify rate burst threshold")
+                raise ValueError(f"{self.name}: specify rate burst threshold")
             if not self.window_sec:
                 self.window_sec = 300  # default window length is 5 minutes
             if len(self.keys) > 1:
-                raise ValueError(self.name + ": specify only one key")
+                raise ValueError(f"{self.name}: specify only one key")
         elif self.behavior is TimeSeriesData.Behavior.evaluate_expression:
             if not (self.expression):
-                raise ValueError(self.name + ": specify evaluation expression")
+                raise ValueError(f"{self.name}: specify evaluation expression")
         else:
-            raise ValueError(self.name + ": trigger behavior not supported")
+            raise ValueError(f"{self.name}: trigger behavior not supported")
 
     def __repr__(self):
-        ts_cond_str = "TimeSeriesCondition: " + self.name
-        ts_cond_str += " statistics: " + str(self.keys)
-        ts_cond_str += " behavior: " + self.behavior.name
+        ts_cond_str = f"TimeSeriesCondition: {self.name}"
+        ts_cond_str += f" statistics: {str(self.keys)}"
+        ts_cond_str += f" behavior: {self.behavior.name}"
         if self.behavior is TimeSeriesData.Behavior.bursty:
-            ts_cond_str += " rate_threshold: " + str(self.rate_threshold)
-            ts_cond_str += " window_sec: " + str(self.window_sec)
+            ts_cond_str += f" rate_threshold: {str(self.rate_threshold)}"
+            ts_cond_str += f" window_sec: {str(self.window_sec)}"
         if self.behavior is TimeSeriesData.Behavior.evaluate_expression:
-            ts_cond_str += " expression: " + self.expression
+            ts_cond_str += f" expression: {self.expression}"
             if hasattr(self, "aggregation_op"):
-                ts_cond_str += " aggregation_op: " + self.aggregation_op.name
+                ts_cond_str += f" aggregation_op: {self.aggregation_op.name}"
         if self.trigger:
-            ts_cond_str += " trigger: " + str(self.trigger)
+            ts_cond_str += f" trigger: {str(self.trigger)}"
         return ts_cond_str
 
 
@@ -449,7 +430,7 @@ class RulesSpec:
                     elif element is IniParser.Element.sugg:
                         new_suggestion = Suggestion(section_name)
                         self.suggestions_dict[section_name] = new_suggestion
-                elif element is IniParser.Element.key_val:
+                else:
                     key, value = IniParser.get_key_value_pair(line)
                     if curr_section is IniParser.Element.rule:
                         new_rule.set_parameter(key, value)
@@ -477,11 +458,11 @@ class RulesSpec:
 
     def get_triggered_rules(self, data_sources, column_families):
         self.trigger_conditions(data_sources)
-        triggered_rules = []
-        for rule in self.rules_dict.values():
-            if rule.is_triggered(self.conditions_dict, column_families):
-                triggered_rules.append(rule)
-        return triggered_rules
+        return [
+            rule
+            for rule in self.rules_dict.values()
+            if rule.is_triggered(self.conditions_dict, column_families)
+        ]
 
     def trigger_conditions(self, data_sources):
         for source_type in data_sources:

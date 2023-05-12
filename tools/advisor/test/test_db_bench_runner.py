@@ -88,7 +88,7 @@ class TestDBBenchRunnerMethods(unittest.TestCase):
             "12345"
         )
         for arg in self.pos_args[2:]:
-            opt_args_str += " --" + arg
+            opt_args_str += f" --{arg}"
         expected_command = (
             self.pos_args[0]
             + " --benchmarks="

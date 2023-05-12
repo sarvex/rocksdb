@@ -25,8 +25,7 @@ def my_check_output(*popenargs, **kwargs):
         stderr=subprocess.PIPE, stdout=subprocess.PIPE, *popenargs, **kwargs
     )
     output, unused_err = process.communicate()
-    retcode = process.poll()
-    if retcode:
+    if retcode := process.poll():
         cmd = kwargs.get("args")
         if cmd is None:
             cmd = popenargs[0]
@@ -35,7 +34,7 @@ def my_check_output(*popenargs, **kwargs):
 
 
 def run_err_null(cmd):
-    return os.system(cmd + " 2>/dev/null ")
+    return os.system(f"{cmd} 2>/dev/null ")
 
 
 class LDBTestCase(unittest.TestCase):
@@ -44,16 +43,12 @@ class LDBTestCase(unittest.TestCase):
         self.DB_NAME = "testdb"
 
     def tearDown(self):
-        assert (
-            self.TMP_DIR.strip() != "/"
-            and self.TMP_DIR.strip() != "/tmp"
-            and self.TMP_DIR.strip() != "/tmp/"
-        )  # Just some paranoia
+        assert self.TMP_DIR.strip() not in ["/", "/tmp", "/tmp/"]
 
         shutil.rmtree(self.TMP_DIR)
 
     def dbParam(self, dbName):
-        return "--db=%s" % os.path.join(self.TMP_DIR, dbName)
+        return f"--db={os.path.join(self.TMP_DIR, dbName)}"
 
     def assertRunOKFull(
         self, params, expectedOutput, unexpected=False, isPattern=False
@@ -63,18 +58,18 @@ class LDBTestCase(unittest.TestCase):
         Allows full flexibility in testing; for example: missing db param.
         """
         output = my_check_output(
-            './ldb %s |grep -v "Created bg thread"' % params, shell=True
+            f'./ldb {params} |grep -v "Created bg thread"', shell=True
         )
-        if not unexpected:
-            if isPattern:
-                self.assertNotEqual(expectedOutput.search(output.strip()), None)
-            else:
-                self.assertEqual(output.strip(), expectedOutput.strip())
-        else:
+        if unexpected:
             if isPattern:
                 self.assertEqual(expectedOutput.search(output.strip()), None)
             else:
                 self.assertNotEqual(output.strip(), expectedOutput.strip())
+
+        elif isPattern:
+            self.assertNotEqual(expectedOutput.search(output.strip()), None)
+        else:
+            self.assertEqual(output.strip(), expectedOutput.strip())
 
     def assertRunFAILFull(self, params):
         """
@@ -92,7 +87,7 @@ class LDBTestCase(unittest.TestCase):
         except Exception:
             return
         self.fail(
-            "Exception should have been raised for command with params: %s" % params
+            f"Exception should have been raised for command with params: {params}"
         )
 
     def assertRunOK(self, params, expectedOutput, unexpected=False):
@@ -100,14 +95,14 @@ class LDBTestCase(unittest.TestCase):
         Uses the default test db.
         """
         self.assertRunOKFull(
-            "%s %s" % (self.dbParam(self.DB_NAME), params), expectedOutput, unexpected
+            f"{self.dbParam(self.DB_NAME)} {params}", expectedOutput, unexpected
         )
 
     def assertRunFAIL(self, params):
         """
         Uses the default test db.
         """
-        self.assertRunFAILFull("%s %s" % (self.dbParam(self.DB_NAME), params))
+        self.assertRunFAILFull(f"{self.dbParam(self.DB_NAME)} {params}")
 
     def testSimpleStringPutGet(self):
         print("Running testSimpleStringPutGet...")
@@ -155,18 +150,21 @@ class LDBTestCase(unittest.TestCase):
         self.assertRunOK("checkconsistency", "OK")
 
     def dumpDb(self, params, dumpFile):
-        return 0 == run_err_null("./ldb dump %s > %s" % (params, dumpFile))
+        return run_err_null(f"./ldb dump {params} > {dumpFile}") == 0
 
     def loadDb(self, params, dumpFile):
-        return 0 == run_err_null("cat %s | ./ldb load %s" % (dumpFile, params))
+        return run_err_null(f"cat {dumpFile} | ./ldb load {params}") == 0
 
     def writeExternSst(self, params, inputDumpFile, outputSst):
-        return 0 == run_err_null(
-            "cat %s | ./ldb write_extern_sst %s %s" % (inputDumpFile, outputSst, params)
+        return (
+            run_err_null(
+                f"cat {inputDumpFile} | ./ldb write_extern_sst {outputSst} {params}"
+            )
+            == 0
         )
 
     def ingestExternSst(self, params, inputSst):
-        return 0 == run_err_null("./ldb ingest_extern_sst %s %s" % (inputSst, params))
+        return run_err_null(f"./ldb ingest_extern_sst {inputSst} {params}") == 0
 
     def testStringBatchPut(self):
         print("Running testStringBatchPut...")
@@ -340,65 +338,66 @@ class LDBTestCase(unittest.TestCase):
         # Dump and load without any additional params specified
         dumpFilePath = os.path.join(self.TMP_DIR, "dump1")
         loadedDbPath = os.path.join(self.TMP_DIR, "loaded_from_dump1")
-        self.assertTrue(self.dumpDb("--db=%s" % origDbPath, dumpFilePath))
+        self.assertTrue(self.dumpDb(f"--db={origDbPath}", dumpFilePath))
         self.assertTrue(
-            self.loadDb("--db=%s --create_if_missing" % loadedDbPath, dumpFilePath)
+            self.loadDb(f"--db={loadedDbPath} --create_if_missing", dumpFilePath)
         )
         self.assertRunOKFull(
-            "scan --db=%s" % loadedDbPath, "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
+            f"scan --db={loadedDbPath}", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
         )
 
         # Dump and load in hex
         dumpFilePath = os.path.join(self.TMP_DIR, "dump2")
         loadedDbPath = os.path.join(self.TMP_DIR, "loaded_from_dump2")
-        self.assertTrue(self.dumpDb("--db=%s --hex" % origDbPath, dumpFilePath))
+        self.assertTrue(self.dumpDb(f"--db={origDbPath} --hex", dumpFilePath))
         self.assertTrue(
             self.loadDb(
-                "--db=%s --hex --create_if_missing" % loadedDbPath, dumpFilePath
+                f"--db={loadedDbPath} --hex --create_if_missing", dumpFilePath
             )
         )
         self.assertRunOKFull(
-            "scan --db=%s" % loadedDbPath, "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
+            f"scan --db={loadedDbPath}", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
         )
 
         # Dump only a portion of the key range
         dumpFilePath = os.path.join(self.TMP_DIR, "dump3")
         loadedDbPath = os.path.join(self.TMP_DIR, "loaded_from_dump3")
         self.assertTrue(
-            self.dumpDb("--db=%s --from=x1 --to=x3" % origDbPath, dumpFilePath)
+            self.dumpDb(f"--db={origDbPath} --from=x1 --to=x3", dumpFilePath)
         )
         self.assertTrue(
-            self.loadDb("--db=%s --create_if_missing" % loadedDbPath, dumpFilePath)
+            self.loadDb(f"--db={loadedDbPath} --create_if_missing", dumpFilePath)
         )
-        self.assertRunOKFull("scan --db=%s" % loadedDbPath, "x1 : y1\nx2 : y2")
+        self.assertRunOKFull(f"scan --db={loadedDbPath}", "x1 : y1\nx2 : y2")
 
         # Dump upto max_keys rows
         dumpFilePath = os.path.join(self.TMP_DIR, "dump4")
         loadedDbPath = os.path.join(self.TMP_DIR, "loaded_from_dump4")
-        self.assertTrue(self.dumpDb("--db=%s --max_keys=3" % origDbPath, dumpFilePath))
+        self.assertTrue(self.dumpDb(f"--db={origDbPath} --max_keys=3", dumpFilePath))
         self.assertTrue(
-            self.loadDb("--db=%s --create_if_missing" % loadedDbPath, dumpFilePath)
+            self.loadDb(f"--db={loadedDbPath} --create_if_missing", dumpFilePath)
         )
-        self.assertRunOKFull("scan --db=%s" % loadedDbPath, "x1 : y1\nx2 : y2\nx3 : y3")
+        self.assertRunOKFull(f"scan --db={loadedDbPath}", "x1 : y1\nx2 : y2\nx3 : y3")
 
         # Load into an existing db, create_if_missing is not specified
-        self.assertTrue(self.dumpDb("--db=%s" % origDbPath, dumpFilePath))
-        self.assertTrue(self.loadDb("--db=%s" % loadedDbPath, dumpFilePath))
+        self.assertTrue(self.dumpDb(f"--db={origDbPath}", dumpFilePath))
+        self.assertTrue(self.loadDb(f"--db={loadedDbPath}", dumpFilePath))
         self.assertRunOKFull(
-            "scan --db=%s" % loadedDbPath, "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
+            f"scan --db={loadedDbPath}", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
         )
 
         # Dump and load with WAL disabled
         dumpFilePath = os.path.join(self.TMP_DIR, "dump5")
         loadedDbPath = os.path.join(self.TMP_DIR, "loaded_from_dump5")
-        self.assertTrue(self.dumpDb("--db=%s" % origDbPath, dumpFilePath))
+        self.assertTrue(self.dumpDb(f"--db={origDbPath}", dumpFilePath))
         self.assertTrue(
             self.loadDb(
-                "--db=%s --disable_wal --create_if_missing" % loadedDbPath, dumpFilePath
+                f"--db={loadedDbPath} --disable_wal --create_if_missing",
+                dumpFilePath,
             )
         )
         self.assertRunOKFull(
-            "scan --db=%s" % loadedDbPath, "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
+            f"scan --db={loadedDbPath}", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
         )
 
         # Dump and load with lots of extra params specified
@@ -413,34 +412,32 @@ class LDBTestCase(unittest.TestCase):
         )
         dumpFilePath = os.path.join(self.TMP_DIR, "dump6")
         loadedDbPath = os.path.join(self.TMP_DIR, "loaded_from_dump6")
-        self.assertTrue(
-            self.dumpDb("--db=%s %s" % (origDbPath, extraParams), dumpFilePath)
-        )
+        self.assertTrue(self.dumpDb(f"--db={origDbPath} {extraParams}", dumpFilePath))
         self.assertTrue(
             self.loadDb(
-                "--db=%s %s --create_if_missing" % (loadedDbPath, extraParams),
+                f"--db={loadedDbPath} {extraParams} --create_if_missing",
                 dumpFilePath,
             )
         )
         self.assertRunOKFull(
-            "scan --db=%s" % loadedDbPath, "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
+            f"scan --db={loadedDbPath}", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
         )
 
         # Dump with count_only
         dumpFilePath = os.path.join(self.TMP_DIR, "dump7")
         loadedDbPath = os.path.join(self.TMP_DIR, "loaded_from_dump7")
-        self.assertTrue(self.dumpDb("--db=%s --count_only" % origDbPath, dumpFilePath))
+        self.assertTrue(self.dumpDb(f"--db={origDbPath} --count_only", dumpFilePath))
         self.assertTrue(
-            self.loadDb("--db=%s --create_if_missing" % loadedDbPath, dumpFilePath)
+            self.loadDb(f"--db={loadedDbPath} --create_if_missing", dumpFilePath)
         )
         # DB should have atleast one value for scan to work
-        self.assertRunOKFull("put --db=%s k1 v1" % loadedDbPath, "OK")
-        self.assertRunOKFull("scan --db=%s" % loadedDbPath, "k1 : v1")
+        self.assertRunOKFull(f"put --db={loadedDbPath} k1 v1", "OK")
+        self.assertRunOKFull(f"scan --db={loadedDbPath}", "k1 : v1")
 
         # Dump command fails because of typo in params
         dumpFilePath = os.path.join(self.TMP_DIR, "dump8")
         self.assertFalse(
-            self.dumpDb("--db=%s --create_if_missing" % origDbPath, dumpFilePath)
+            self.dumpDb(f"--db={origDbPath} --create_if_missing", dumpFilePath)
         )
 
         # Dump and load with BlobDB enabled
@@ -449,16 +446,15 @@ class LDBTestCase(unittest.TestCase):
         )
         dumpFilePath = os.path.join(self.TMP_DIR, "dump9")
         loadedDbPath = os.path.join(self.TMP_DIR, "loaded_from_dump9")
-        self.assertTrue(self.dumpDb("--db=%s" % (origDbPath), dumpFilePath))
+        self.assertTrue(self.dumpDb(f"--db={origDbPath}", dumpFilePath))
         self.assertTrue(
             self.loadDb(
-                "--db=%s %s --create_if_missing --disable_wal"
-                % (loadedDbPath, blobParams),
+                f"--db={loadedDbPath} {blobParams} --create_if_missing --disable_wal",
                 dumpFilePath,
             )
         )
         self.assertRunOKFull(
-            "scan --db=%s" % loadedDbPath, "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
+            f"scan --db={loadedDbPath}", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4"
         )
         blob_files = self.getBlobFiles(loadedDbPath)
         self.assertTrue(len(blob_files) >= 1)
@@ -473,7 +469,7 @@ class LDBTestCase(unittest.TestCase):
             "'b' seq:2, type:1 => val\nInternal keys in range: 2",
         )
         self.assertRunOK(
-            "idump --input_key_hex --from=%s --to=%s" % (hex(ord("a")), hex(ord("b"))),
+            f'idump --input_key_hex --from={hex(ord("a"))} --to={hex(ord("b"))}',
             "'a' seq:1, type:1 => val\nInternal keys in range: 1",
         )
 
@@ -501,39 +497,40 @@ class LDBTestCase(unittest.TestCase):
         self.assertRunOK("scan", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
         origDbPath = os.path.join(self.TMP_DIR, self.DB_NAME)
 
-        self.assertTrue(0 == run_err_null("./ldb compact --db=%s" % origDbPath))
+        self.assertTrue(run_err_null(f"./ldb compact --db={origDbPath}") == 0)
         self.assertRunOK("scan", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
 
         self.assertTrue(
-            0 == run_err_null("./ldb reduce_levels --db=%s --new_levels=2" % origDbPath)
+            run_err_null(f"./ldb reduce_levels --db={origDbPath} --new_levels=2")
+            == 0
         )
         self.assertRunOK("scan", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
 
         self.assertTrue(
-            0 == run_err_null("./ldb reduce_levels --db=%s --new_levels=3" % origDbPath)
+            run_err_null(f"./ldb reduce_levels --db={origDbPath} --new_levels=3")
+            == 0
         )
         self.assertRunOK("scan", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
 
         self.assertTrue(
-            0 == run_err_null("./ldb compact --db=%s --from=x1 --to=x3" % origDbPath)
+            run_err_null(f"./ldb compact --db={origDbPath} --from=x1 --to=x3") == 0
         )
         self.assertRunOK("scan", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
 
         self.assertTrue(
-            0
-            == run_err_null(
-                "./ldb compact --db=%s --hex --from=0x6131 --to=0x6134" % origDbPath
+            run_err_null(
+                f"./ldb compact --db={origDbPath} --hex --from=0x6131 --to=0x6134"
             )
+            == 0
         )
         self.assertRunOK("scan", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
 
         # TODO(dilip): Not sure what should be passed to WAL.Currently corrupted.
         self.assertTrue(
-            0
-            == run_err_null(
-                "./ldb dump_wal --db=%s --walfile=%s --header"
-                % (origDbPath, os.path.join(origDbPath, "LOG"))
+            run_err_null(
+                f'./ldb dump_wal --db={origDbPath} --walfile={os.path.join(origDbPath, "LOG")} --header'
             )
+            == 0
         )
         self.assertRunOK("scan", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
 
@@ -547,19 +544,19 @@ class LDBTestCase(unittest.TestCase):
         self.assertRunOK("checkconsistency", "OK")
 
         sstFilePath = my_check_output(
-            "ls %s" % os.path.join(dbPath, "*.sst"), shell=True
+            f'ls {os.path.join(dbPath, "*.sst")}', shell=True
         )
 
         # Modify the file
-        my_check_output("echo 'evil' > %s" % sstFilePath, shell=True)
+        my_check_output(f"echo 'evil' > {sstFilePath}", shell=True)
         self.assertRunFAIL("checkconsistency")
 
         # Delete the file
-        my_check_output("rm -f %s" % sstFilePath, shell=True)
+        my_check_output(f"rm -f {sstFilePath}", shell=True)
         self.assertRunFAIL("checkconsistency")
 
     def dumpLiveFiles(self, params, dumpFile):
-        return 0 == run_err_null("./ldb dump_live_files %s > %s" % (params, dumpFile))
+        return run_err_null(f"./ldb dump_live_files {params} > {dumpFile}") == 0
 
     def testDumpLiveFiles(self):
         print("Running testDumpLiveFiles...")
@@ -568,7 +565,7 @@ class LDBTestCase(unittest.TestCase):
         self.assertRunOK("put x1 y1 --create_if_missing", "OK")
         self.assertRunOK("put x2 y2 --enable_blob_files", "OK")
         dumpFilePath = os.path.join(self.TMP_DIR, "dump1")
-        self.assertTrue(self.dumpLiveFiles("--db=%s" % dbPath, dumpFilePath))
+        self.assertTrue(self.dumpLiveFiles(f"--db={dbPath}", dumpFilePath))
         self.assertRunOK("delete x1", "OK")
         self.assertRunOK("put x3 y3", "OK")
         dumpFilePath = os.path.join(self.TMP_DIR, "dump2")
@@ -584,7 +581,7 @@ class LDBTestCase(unittest.TestCase):
         # Call the dump_live_files function with the edited dbPath name.
         self.assertTrue(
             self.dumpLiveFiles(
-                "--db=%s --decode_blob_index --dump_uncompressed_blobs" % dbPath,
+                f"--db={dbPath} --decode_blob_index --dump_uncompressed_blobs",
                 dumpFilePath,
             )
         )
@@ -613,15 +610,16 @@ class LDBTestCase(unittest.TestCase):
         self.assertTrue(len(manifestFileList) >= 1)
         for manifestFilename in manifestFileList:
             filenumber = re.findall(r"(?<=MANIFEST-)\d+", manifestFilename)[0]
-            self.assertEqual(manifestFilename, dbPath + "MANIFEST-" + filenumber)
+            self.assertEqual(manifestFilename, f"{dbPath}MANIFEST-{filenumber}")
 
         # Check that the blob file index is decoded.
         decodedBlobIndex = re.findall(r"\[blob ref\]", data)
         self.assertTrue(len(decodedBlobIndex) >= 1)
 
     def listLiveFilesMetadata(self, params, dumpFile):
-        return 0 == run_err_null(
-            "./ldb list_live_files_metadata %s > %s" % (params, dumpFile)
+        return (
+            run_err_null(f"./ldb list_live_files_metadata {params} > {dumpFile}")
+            == 0
         )
 
     def testListLiveFilesMetadata(self):
@@ -634,11 +632,11 @@ class LDBTestCase(unittest.TestCase):
         # Compare the SST filename and the level of list_live_files_metadata
         # with the data collected from dump_live_files.
         dumpFilePath1 = os.path.join(self.TMP_DIR, "dump1")
-        self.assertTrue(self.dumpLiveFiles("--db=%s" % dbPath, dumpFilePath1))
+        self.assertTrue(self.dumpLiveFiles(f"--db={dbPath}", dumpFilePath1))
         dumpFilePath2 = os.path.join(self.TMP_DIR, "dump2")
         self.assertTrue(
             self.listLiveFilesMetadata(
-                "--sort_by_filename --db=%s" % dbPath, dumpFilePath2
+                f"--sort_by_filename --db={dbPath}", dumpFilePath2
             )
         )
 
@@ -670,11 +668,11 @@ class LDBTestCase(unittest.TestCase):
         # Call dump_live_files and list_live_files_metadata
         # and pipe the output to compare them later.
         dumpFilePath3 = os.path.join(self.TMP_DIR, "dump3")
-        self.assertTrue(self.dumpLiveFiles("--db=%s" % dbPath, dumpFilePath3))
+        self.assertTrue(self.dumpLiveFiles(f"--db={dbPath}", dumpFilePath3))
         dumpFilePath4 = os.path.join(self.TMP_DIR, "dump4")
         self.assertTrue(
             self.listLiveFilesMetadata(
-                "--sort_by_filename --db=%s" % dbPath, dumpFilePath4
+                f"--sort_by_filename --db={dbPath}", dumpFilePath4
             )
         )
 
@@ -717,19 +715,19 @@ class LDBTestCase(unittest.TestCase):
         self.assertEqual(referenceMap, testMap)
 
     def getManifests(self, directory):
-        return glob.glob(directory + "/MANIFEST-*")
+        return glob.glob(f"{directory}/MANIFEST-*")
 
     def getSSTFiles(self, directory):
-        return glob.glob(directory + "/*.sst")
+        return glob.glob(f"{directory}/*.sst")
 
     def getWALFiles(self, directory):
-        return glob.glob(directory + "/*.log")
+        return glob.glob(f"{directory}/*.log")
 
     def getBlobFiles(self, directory):
-        return glob.glob(directory + "/*.blob")
+        return glob.glob(f"{directory}/*.blob")
 
     def copyManifests(self, src, dest):
-        return 0 == run_err_null("cp " + src + " " + dest)
+        return run_err_null(f"cp {src} {dest}") == 0
 
     def testManifestDump(self):
         print("Running testManifestDump...")
@@ -740,8 +738,8 @@ class LDBTestCase(unittest.TestCase):
         # Pattern to expect from manifest_dump.
         num = "[0-9]+"
         st = ".*"
-        subpat = st + " seq:" + num + ", type:" + num
-        regex = num + ":" + num + "\[" + subpat + ".." + subpat + "\]"
+        subpat = f"{st} seq:{num}, type:{num}"
+        regex = f"{num}:{num}" + "\[" + subpat + ".." + subpat + "\]"
         expected_pattern = re.compile(regex)
         cmd = "manifest_dump --db=%s"
         manifest_files = self.getManifests(dbPath)
@@ -750,14 +748,14 @@ class LDBTestCase(unittest.TestCase):
         self.assertRunOKFull(
             cmd % dbPath, expected_pattern, unexpected=False, isPattern=True
         )
-        self.copyManifests(manifest_files[0], manifest_files[0] + "1")
+        self.copyManifests(manifest_files[0], f"{manifest_files[0]}1")
         manifest_files = self.getManifests(dbPath)
         self.assertTrue(len(manifest_files) == 2)
         # Test with multiple manifest files in dbPath.
         self.assertRunFAILFull(cmd % dbPath)
         # Running it with the copy we just created should pass.
         self.assertRunOKFull(
-            (cmd + " --path=%s") % (dbPath, manifest_files[1]),
+            f"{cmd} --path=%s" % (dbPath, manifest_files[1]),
             expected_pattern,
             unexpected=False,
             isPattern=True,
@@ -920,34 +918,34 @@ class LDBTestCase(unittest.TestCase):
         # Dump, load, write external sst and ingest it in another db
         dbPath = os.path.join(self.TMP_DIR, "db1")
         self.assertRunOK(
-            "batchput --db=%s --create_if_missing x1 y1 x2 y2 x3 y3 x4 y4" % dbPath,
+            f"batchput --db={dbPath} --create_if_missing x1 y1 x2 y2 x3 y3 x4 y4",
             "OK",
         )
-        self.assertRunOK("scan --db=%s" % dbPath, "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
+        self.assertRunOK(f"scan --db={dbPath}", "x1 : y1\nx2 : y2\nx3 : y3\nx4 : y4")
         dumpFilePath = os.path.join(self.TMP_DIR, "dump1")
         with open(dumpFilePath, "w") as f:
             f.write("x1 ==> y10\nx2 ==> y20\nx3 ==> y30\nx4 ==> y40")
         externSstPath = os.path.join(self.TMP_DIR, "extern_data1.sst")
         self.assertTrue(
             self.writeExternSst(
-                "--create_if_missing --db=%s" % dbPath, dumpFilePath, externSstPath
+                f"--create_if_missing --db={dbPath}", dumpFilePath, externSstPath
             )
         )
         # cannot ingest if allow_global_seqno is false
         self.assertFalse(
             self.ingestExternSst(
-                "--create_if_missing --allow_global_seqno=false --db=%s" % dbPath,
+                f"--create_if_missing --allow_global_seqno=false --db={dbPath}",
                 externSstPath,
             )
         )
         self.assertTrue(
             self.ingestExternSst(
-                "--create_if_missing --allow_global_seqno --db=%s" % dbPath,
+                f"--create_if_missing --allow_global_seqno --db={dbPath}",
                 externSstPath,
             )
         )
         self.assertRunOKFull(
-            "scan --db=%s" % dbPath, "x1 : y10\nx2 : y20\nx3 : y30\nx4 : y40"
+            f"scan --db={dbPath}", "x1 : y10\nx2 : y20\nx3 : y30\nx4 : y40"
         )
 
 

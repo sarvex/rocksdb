@@ -59,8 +59,7 @@ class TimeSeriesData(DataSource):
         if self.stats_freq_sec == 0:
             # not time series data, cannot check for bursty behavior
             return
-        if window_sec < self.stats_freq_sec:
-            window_sec = self.stats_freq_sec
+        window_sec = max(window_sec, self.stats_freq_sec)
         # 'window_samples' is the number of windows to go back to
         # compare the current window with, while calculating rate change.
         window_samples = math.ceil(window_sec / self.stats_freq_sec)
@@ -133,31 +132,19 @@ class TimeSeriesData(DataSource):
             # of the condition's 'keys' for that entity
             entities_with_stats = []
             for entity in self.keys_ts:
-                stat_missing = False
-                for stat in complete_keys:
-                    if stat not in self.keys_ts[entity]:
-                        stat_missing = True
-                        break
+                stat_missing = any(stat not in self.keys_ts[entity] for stat in complete_keys)
                 if not stat_missing:
                     entities_with_stats.append(entity)
             if not entities_with_stats:
                 continue
             if cond.behavior is self.Behavior.bursty:
-                # for a condition that checks for bursty behavior, only one key
-                # should be present in the condition's 'keys' field
-                result = self.fetch_burst_epochs(
+                if result := self.fetch_burst_epochs(
                     entities_with_stats,
                     complete_keys[0],  # there should be only one key
                     cond.window_sec,
                     cond.rate_threshold,
                     True,
-                )
-                # Trigger in this case is:
-                # Dict[entity_name, Dict[timestamp, rate_change]]
-                # where the inner dictionary contains rate_change values when
-                # the rate_change >= threshold provided, with the
-                # corresponding timestamps
-                if result:
+                ):
                     cond.set_trigger(result)
             elif cond.behavior is self.Behavior.evaluate_expression:
                 self.handle_evaluate_expression(
@@ -182,7 +169,7 @@ class TimeSeriesData(DataSource):
                     if eval(condition.expression):
                         trigger[entity] = keys
                 except Exception as e:
-                    print("WARNING(TimeSeriesData) check_and_trigger: " + str(e))
+                    print(f"WARNING(TimeSeriesData) check_and_trigger: {str(e)}")
             else:
                 # assumption: all stats have same series of timestamps
                 # this is similar to the above but 'expression' is evaluated at
@@ -198,6 +185,6 @@ class TimeSeriesData(DataSource):
                                 trigger[entity] = {}
                             trigger[entity][epoch] = keys
                     except Exception as e:
-                        print("WARNING(TimeSeriesData) check_and_trigger: " + str(e))
+                        print(f"WARNING(TimeSeriesData) check_and_trigger: {str(e)}")
         if trigger:
             condition.set_trigger(trigger)

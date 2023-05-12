@@ -70,7 +70,7 @@ def run_shell_command(shell_cmd, cmd_dir=None):
     @returns a tuple of shell command return code, stdout, stderr"""
 
     if cmd_dir is not None and not os.path.exists(cmd_dir):
-        run_shell_command("mkdir -p %s" % cmd_dir)
+        run_shell_command(f"mkdir -p {cmd_dir}")
 
     start = time.time()
     print("\t>>> Running: " + shell_cmd)
@@ -105,13 +105,10 @@ def run_shell_commands(shell_cmds, cmd_dir=None, verbose=False):
 
     for shell_cmd in shell_cmds:
         ret_code, stdout, stderr = run_shell_command(shell_cmd, cmd_dir)
-        if stdout:
-            if verbose or ret_code != 0:
-                print(ColorString.info("stdout: \n"), stdout)
-        if stderr:
-            # contents in stderr is not necessarily to be error messages.
-            if verbose or ret_code != 0:
-                print(ColorString.error("stderr: \n"), stderr)
+        if stdout and (verbose or ret_code != 0):
+            print(ColorString.info("stdout: \n"), stdout)
+        if stderr and (verbose or ret_code != 0):
+            print(ColorString.error("stderr: \n"), stderr)
         if ret_code != 0:
             return False
 

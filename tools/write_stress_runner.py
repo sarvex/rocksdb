@@ -25,9 +25,7 @@ def generate_runtimes(total_runtime):
 
 def main(args):
     runtimes = generate_runtimes(int(args.runtime_sec))
-    print(
-        "Going to execute write stress for " + str(runtimes)
-    )  # noqa: E999 T25377293 Grandfathered in
+    print(f"Going to execute write stress for {str(runtimes)}")
     first_time = True
 
     for runtime in runtimes:
@@ -36,17 +34,17 @@ def main(args):
         cmd = "./write_stress --runtime_sec=" + ("-1" if kill else str(runtime))
 
         if len(args.db) > 0:
-            cmd = cmd + " --db=" + args.db
+            cmd = f"{cmd} --db={args.db}"
 
         if first_time:
             first_time = False
         else:
             # use current db
-            cmd = cmd + " --destroy_db=false"
+            cmd = f"{cmd} --destroy_db=false"
         if random.choice([False, True]):
-            cmd = cmd + " --delete_obsolete_files_with_fullscan=true"
+            cmd = f"{cmd} --delete_obsolete_files_with_fullscan=true"
         if random.choice([False, True]):
-            cmd = cmd + " --low_open_files_mode=true"
+            cmd = f"{cmd} --low_open_files_mode=true"
 
         print(
             "Running write_stress for %d seconds (%s): %s"
@@ -60,11 +58,10 @@ def main(args):
             if child.poll() is not None:
                 if child.returncode == 0:
                     break
-                else:
-                    print(
-                        "ERROR: write_stress died with exitcode=%d\n" % child.returncode
-                    )
-                    sys.exit(1)
+                print(
+                    "ERROR: write_stress died with exitcode=%d\n" % child.returncode
+                )
+                sys.exit(1)
         if kill:
             child.kill()
         # breathe

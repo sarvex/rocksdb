@@ -12,7 +12,7 @@ filenames = []
 for base in ["buckifier", "build_tools", "coverage", "tools"]:
     # Clean this up when we finally upgrade to Python 3
     for suff in ["*", "*/*", "*/*/*"]:
-        filenames += glob.glob(base + "/" + suff + ".py")
+        filenames += glob.glob(f"{base}/{suff}.py")
 
 for filename in filenames:
     source = open(filename, "r").read() + "\n"

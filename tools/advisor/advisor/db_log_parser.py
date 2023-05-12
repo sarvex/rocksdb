@@ -73,9 +73,8 @@ class Log:
         # example: '2018/07/25-11:25:45.782710' will be converted to the GMT
         # Unix timestamp 1532517945 (note: this method assumes that self.time
         # is in GMT)
-        hr_time = self.time + "GMT"
-        timestamp = timegm(time.strptime(hr_time, "%Y/%m/%d-%H:%M:%S.%f%Z"))
-        return timestamp
+        hr_time = f"{self.time}GMT"
+        return timegm(time.strptime(hr_time, "%Y/%m/%d-%H:%M:%S.%f%Z"))
 
     def __repr__(self):
         return (
@@ -111,7 +110,7 @@ class DatabaseLogs(DataSource):
                 cond.set_trigger(trigger)
 
     def check_and_trigger_conditions(self, conditions):
-        for file_name in glob.glob(self.logs_path_prefix + "*"):
+        for file_name in glob.glob(f"{self.logs_path_prefix}*"):
             # TODO(poojam23): find a way to distinguish between log files
             # - generated in the current experiment but are labeled 'old'
             # because they LOGs exceeded the file size limit  AND

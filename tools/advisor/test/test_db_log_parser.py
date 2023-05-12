@@ -37,7 +37,7 @@ class TestLog(unittest.TestCase):
             "[db/flush_job.cc:331] [default] [JOB 10] Level-0 flush table "
             + "#23: started"
         )
-        test_log = hr_time + " " + context + " " + message
+        test_log = f"{hr_time} {context} {message}"
         db_log = Log(test_log, self.column_families)
         self.assertEqual(db_log.get_message(), message)
         remaining_message = "[col_fam_A] some more logs"

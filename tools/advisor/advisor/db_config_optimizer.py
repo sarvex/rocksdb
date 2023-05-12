@@ -23,7 +23,7 @@ class ConfigOptimizer:
         new_value = None
         if action is Suggestion.Action.set or not old_value:
             assert chosen_sugg_val
-            new_value = chosen_sugg_val
+            return chosen_sugg_val
         else:
             # For increase/decrease actions, currently the code tries to make
             # a 30% change in the option's value per iteration. An addend is
@@ -34,21 +34,12 @@ class ConfigOptimizer:
             mul = 0
             add = 0
             if action is Suggestion.Action.increase:
-                if old_value < 0:
-                    mul = 0.7
-                    add = 2
-                else:
-                    mul = 1.3
-                    add = 2
+                mul = 0.7 if old_value < 0 else 1.3
+                add = 2
             elif action is Suggestion.Action.decrease:
-                if old_value < 0:
-                    mul = 1.3
-                    add = -2
-                else:
-                    mul = 0.7
-                    add = -2
-            new_value = int(old_value * mul + add)
-        return new_value
+                mul = 1.3 if old_value < 0 else 0.7
+                add = -2
+            return int(old_value * mul + add)
 
     @staticmethod
     def improve_db_config(options, rule, suggestions_dict):
@@ -217,7 +208,7 @@ class ConfigOptimizer:
         old_data_sources, old_metric = self.bench_runner.run_experiment(
             options, self.base_db_path
         )
-        print("Initial metric: " + str(old_metric))
+        print(f"Initial metric: {str(old_metric)}")
         self.rule_parser.load_rules_from_spec()
         self.rule_parser.perform_section_checks()
         triggered_rules = self.rule_parser.get_triggered_rules(

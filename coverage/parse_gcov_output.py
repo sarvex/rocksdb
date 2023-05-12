@@ -17,19 +17,14 @@ def parse_gcov_report(gcov_input):
     for line in sys.stdin:
         line = line.strip()
 
-        # --First line of the coverage report (with file name in it)?
-        match_obj = re.match("^File '(.*)'$", line)
-        if match_obj:
+        if match_obj := re.match("^File '(.*)'$", line):
             # fetch the file name from the first line of the report.
-            current_file = match_obj.group(1)
+            current_file = match_obj[1]
             continue
 
-        # -- Second line of the file report (with coverage percentage)
-        match_obj = re.match("^Lines executed:(.*)% of (.*)", line)
-
-        if match_obj:
-            coverage = float(match_obj.group(1))
-            lines = int(match_obj.group(2))
+        if match_obj := re.match("^Lines executed:(.*)% of (.*)", line):
+            coverage = float(match_obj[1])
+            lines = int(match_obj[2])
 
             if current_file is not None:
                 per_file_coverage[current_file] = (coverage, lines)
@@ -75,7 +70,7 @@ def display_file_coverage(per_file_coverage, total_coverage):
     # -- Print header
     # size of separator is determined by 3 column sizes:
     # file name, coverage percentage and lines.
-    header_template = "%" + str(max_file_name_length) + "s\t%s\t%s"
+    header_template = f"%{str(max_file_name_length)}" + "s\t%s\t%s"
     separator = "-" * (max_file_name_length + 10 + 20)
     print(
         header_template % ("Filename", "Coverage", "Lines")
@@ -84,7 +79,7 @@ def display_file_coverage(per_file_coverage, total_coverage):
 
     # -- Print body
     # template for printing coverage report for each file.
-    record_template = "%" + str(max_file_name_length) + "s\t%5.2f%%\t%10d"
+    record_template = f"%{str(max_file_name_length)}" + "s\t%5.2f%%\t%10d"
 
     for fname, coverage_info in per_file_coverage.items():
         coverage, lines = coverage_info
@@ -109,11 +104,11 @@ def report_coverage():
 
     # Check if we need to display coverage info for interested files.
     if len(interested_files):
-        per_file_coverage = dict(
-            (fname, per_file_coverage[fname])
+        per_file_coverage = {
+            fname: per_file_coverage[fname]
             for fname in interested_files
             if fname in per_file_coverage
-        )
+        }
         # If we only interested in several files, it makes no sense to report
         # the total_coverage
         total_coverage = None

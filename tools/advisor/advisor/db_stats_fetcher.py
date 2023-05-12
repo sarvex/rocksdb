@@ -24,7 +24,7 @@ class LogStatsParser(TimeSeriesData):
         token_list = log_line.strip().split()
         # token_list = ['rocksdb.db.get.micros', 'P50', ':', '8.4', 'P95', ':',
         # '21.8', 'P99', ':', '33.9', 'P100', ':', '92.0']
-        stat_prefix = token_list[0] + "."  # 'rocksdb.db.get.micros.'
+        stat_prefix = f"{token_list[0]}."
         stat_values = [token for token in token_list[1:] if token != ":"]
         # stat_values = ['P50', '8.4', 'P95', '21.8', 'P99', '33.9', 'P100',
         # '92.0']
@@ -93,7 +93,7 @@ class LogStatsParser(TimeSeriesData):
         # this method parses the Rocksdb LOG file and generates timeseries for
         # each of the statistic in the list reqd_stats
         self.keys_ts = {NO_ENTITY: {}}
-        for file_name in glob.glob(self.logs_file_prefix + "*"):
+        for file_name in glob.glob(f"{self.logs_file_prefix}*"):
             # TODO(poojam23): find a way to distinguish between 'old' log files
             # from current and previous experiments, present in the same
             # directory
@@ -173,7 +173,7 @@ class OdsStatsFetcher(TimeSeriesData):
     # static methods
     @staticmethod
     def _get_string_in_quotes(value):
-        return '"' + str(value) + '"'
+        return f'"{str(value)}"'
 
     @staticmethod
     def _get_time_value_pair(pair_string):
@@ -188,8 +188,7 @@ class OdsStatsFetcher(TimeSeriesData):
     @staticmethod
     def _get_ods_cli_stime(start_time):
         diff = int(time.time() - int(start_time))
-        stime = str(diff) + "_s"
-        return stime
+        return f"{diff}_s"
 
     def __init__(self, client, entities, start_time, end_time, key_prefix=None):
         super().__init__()
@@ -204,10 +203,9 @@ class OdsStatsFetcher(TimeSeriesData):
     def execute_script(self, command):
         print("executing...")
         print(command)
-        out_file = open(self.OUTPUT_FILE, "w+")
-        err_file = open(self.ERROR_FILE, "w+")
-        subprocess.call(command, shell=True, stdout=out_file, stderr=err_file)
-        out_file.close()
+        with open(self.OUTPUT_FILE, "w+") as out_file:
+            err_file = open(self.ERROR_FILE, "w+")
+            subprocess.call(command, shell=True, stdout=out_file, stderr=err_file)
         err_file.close()
 
     def parse_rapido_output(self):
@@ -250,7 +248,7 @@ class OdsStatsFetcher(TimeSeriesData):
     def fetch_timeseries(self, statistics):
         # this method fetches the timeseries of required stats from the ODS
         # service and populates the 'keys_ts' object appropriately
-        print("OdsStatsFetcher: fetching " + str(statistics))
+        print(f"OdsStatsFetcher: fetching {str(statistics)}")
         if re.search("rapido", self.client, re.IGNORECASE):
             command = self.RAPIDO_COMMAND % (
                 self.client,
@@ -291,11 +289,11 @@ class OdsStatsFetcher(TimeSeriesData):
                 if key.startswith("rocksdb"):
                     key += ".60"
                 if use_prefix:
-                    if not self.key_prefix:
-                        print("Warning: OdsStatsFetcher might need key prefix")
-                        print("for the key: " + key)
+                    if self.key_prefix:
+                        key = f"{self.key_prefix}.{key}"
                     else:
-                        key = self.key_prefix + "." + key
+                        print("Warning: OdsStatsFetcher might need key prefix")
+                        print(f"for the key: {key}")
                 reqd_stats.append(key)
         return reqd_stats
 
@@ -307,15 +305,10 @@ class OdsStatsFetcher(TimeSeriesData):
         percent: str,
         display: bool,
     ) -> str:
-        transform_desc = (
-            "rate(" + str(window_len) + ",duration=" + str(self.duration_sec)
-        )
-        if percent:
-            transform_desc = transform_desc + ",%)"
-        else:
-            transform_desc = transform_desc + ")"
+        transform_desc = f"rate({window_len},duration={str(self.duration_sec)}"
+        transform_desc = f"{transform_desc},%)" if percent else f"{transform_desc})"
         if re.search("rapido", self.client, re.IGNORECASE):
-            command = self.RAPIDO_COMMAND + " --transform=%s --url=%s"
+            command = f"{self.RAPIDO_COMMAND} --transform=%s --url=%s"
             command = command % (
                 self.client,
                 self._get_string_in_quotes(",".join(entities)),

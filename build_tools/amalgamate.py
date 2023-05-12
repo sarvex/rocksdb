@@ -62,7 +62,7 @@ def expand_include(
 
     included.add(include_path)
     with open(include_path) as f:
-        print('#line 1 "{}"'.format(include_path), file=source_out)
+        print(f'#line 1 "{include_path}"', file=source_out)
         process_file(
             f, include_path, source_out, header_out, include_paths, public_include_paths
         )
@@ -73,12 +73,9 @@ def process_file(
     f, abs_path, source_out, header_out, include_paths, public_include_paths
 ):
     for (line, text) in enumerate(f):
-        m = include_re.match(text)
-        if m:
+        if m := include_re.match(text):
             filename = m.groups()[0]
-            # first check private headers
-            include_path = find_header(filename, abs_path, include_paths)
-            if include_path:
+            if include_path := find_header(filename, abs_path, include_paths):
                 if include_path in excluded:
                     source_out.write(text)
                     expanded = False
@@ -92,33 +89,28 @@ def process_file(
                         include_paths,
                         public_include_paths,
                     )
-            else:
-                # now try public headers
-                include_path = find_header(filename, abs_path, public_include_paths)
-                if include_path:
-                    # found public header
-                    expanded = False
-                    if include_path in excluded:
-                        source_out.write(text)
-                    else:
-                        expand_include(
-                            include_path,
-                            f,
-                            abs_path,
-                            header_out,
-                            None,
-                            public_include_paths,
-                            [],
-                        )
+            elif include_path := find_header(
+                filename, abs_path, public_include_paths
+            ):
+                # found public header
+                expanded = False
+                if include_path in excluded:
+                    source_out.write(text)
                 else:
-                    sys.exit(
-                        "unable to find {}, included in {} on line {}".format(
-                            filename, abs_path, line
-                        )
+                    expand_include(
+                        include_path,
+                        f,
+                        abs_path,
+                        header_out,
+                        None,
+                        public_include_paths,
+                        [],
                     )
+            else:
+                sys.exit(f"unable to find {filename}, included in {abs_path} on line {line}")
 
             if expanded:
-                print('#line {} "{}"'.format(line + 1, abs_path), file=source_out)
+                print(f'#line {line + 1} "{abs_path}"', file=source_out)
         elif text != "#pragma once\n":
             source_out.write(text)
 
@@ -154,11 +146,11 @@ def main():
     excluded.update(map(path.abspath, args.excluded or []))
     filename = args.source
     abs_path = path.abspath(filename)
-    with open(filename) as f, open(args.source_out, "w") as source_out, open(
-        args.header_out, "w"
-    ) as header_out:
-        print('#line 1 "{}"'.format(filename), file=source_out)
-        print('#include "{}"'.format(header_out.name), file=source_out)
+    with (open(filename) as f, open(args.source_out, "w") as source_out, open(
+            args.header_out, "w"
+        ) as header_out):
+        print(f'#line 1 "{filename}"', file=source_out)
+        print(f'#include "{header_out.name}"', file=source_out)
         process_file(
             f, abs_path, source_out, header_out, include_paths, public_include_paths
         )

@@ -15,7 +15,7 @@ def pretty_list(lst, indent=8):
         return ""
 
     if len(lst) == 1:
-        return '"%s"' % lst[0]
+        return f'"{lst[0]}"'
 
     separator = '",\n%s"' % (" " * indent)
     res = separator.join(sorted(lst))
@@ -48,7 +48,7 @@ class TARGETSBuilder(object):
         extra_test_libs=False,
     ):
         if headers is not None:
-            headers = "[" + pretty_list(headers) + "]"
+            headers = f"[{pretty_list(headers)}]"
         with open(self.path, "ab") as targets_file:
             targets_file.write(
                 targets_cfg.library_template.format(
@@ -66,7 +66,7 @@ class TARGETSBuilder(object):
 
     def add_rocksdb_library(self, name, srcs, headers=None, external_dependencies=None):
         if headers is not None:
-            headers = "[" + pretty_list(headers) + "]"
+            headers = f"[{pretty_list(headers)}]"
         with open(self.path, "ab") as targets_file:
             targets_file.write(
                 targets_cfg.rocksdb_library_template.format(
